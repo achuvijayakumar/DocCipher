@@ -37,7 +37,7 @@ from .models import (
 )
 
 APP_NAME = "DocCipher Breaker"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 AUTHOR = "Achu Vijayakumar"
 YEAR = "2026"
 EDU_NOTICE = "FOR EDUCATIONAL PURPOSES ONLY"
@@ -287,7 +287,11 @@ def api_update_apply() -> JSONResponse:
 
     # Give the response time to reach the UI before the process exits.
     def quit_soon() -> None:
-        time.sleep(1.5)
+        # Long enough for this response to reach the UI, short enough that the
+        # user is not left looking at a frozen window. os._exit skips cleanup
+        # deliberately: it drops the lock on our own .exe immediately, which is
+        # exactly what the swap script is waiting for.
+        time.sleep(2.0)
         os._exit(0)
 
     threading.Thread(target=quit_soon, daemon=True).start()

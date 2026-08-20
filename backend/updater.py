@@ -289,42 +289,83 @@ def download(manifest_path: Path, dest_dir: Path) -> dict:
     return state.as_dict()
 
 
-SWAP_SCRIPT = """@echo off
-setlocal
-:: Written by DocCipher Breaker to install a verified update.
-:: The running executable is locked by Windows, so this waits for the app to
-:: exit, swaps the file, and relaunches. The old build is kept for rollback.
+# The swap runs in PowerShell rather than a batch file for one specific
+# reason: a .bat that loops calling ping spawns a visible console window on
+# every iteration -- up to sixty of them flashing on screen, which looks
+# exactly like something malicious. PowerShell can sleep in-process with no
+# window at all.
+#
+# The wait also has to test the lock correctly. Opening the .exe for append
+# succeeds even while it is running; only an exclusive open proves Windows has
+# released it.
+SWAP_SCRIPT = r"""param([string]$Target, [string]$Staged)
 
-set "TARGET=%~1"
-set "STAGED=%~2"
+$ErrorActionPreference = 'Stop'
 
-:: Wait for the app to release the file (up to ~30 seconds).
-set /a tries=0
-:waitloop
-set /a tries+=1
-if %tries% gtr 60 goto :giveup
-ping -n 2 127.0.0.1 >nul
-2>nul (
-  >>"%TARGET%" (call )
-) || goto :waitloop
+function Test-Unlocked($path) {
+    try {
+        $fs = [IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
+        $fs.Close()
+        return $true
+    } catch { return $false }
+}
 
-if exist "%TARGET%.old" del /q "%TARGET%.old" >nul 2>&1
-move /y "%TARGET%" "%TARGET%.old" >nul 2>&1
-move /y "%STAGED%" "%TARGET%" >nul 2>&1
+# Wait for the app to exit and release its own executable.
+#
+# 30 seconds proved too short in practice: the server thread and the WebView2
+# host can hold the image briefly after the window closes, and when the wait
+# expired the update was silently discarded. Three minutes is far longer than
+# a normal shutdown and costs nothing, since this runs detached.
+$deadline = (Get-Date).AddSeconds(180)
+while ((Get-Date) -lt $deadline) {
+    if (Test-Unlocked $Target) { break }
+    Start-Sleep -Milliseconds 400
+}
 
-if not exist "%TARGET%" (
-    :: Swap failed -- put the previous build back.
-    move /y "%TARGET%.old" "%TARGET%" >nul 2>&1
-)
+if (-not (Test-Unlocked $Target)) {
+    # Keep the download rather than deleting it -- the user can retry, and a
+    # silent disappearance is worse than a file left behind.
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    [System.Windows.Forms.MessageBox]::Show(
+        "The update could not be installed because DocCipher Breaker is still running." +
+        [Environment]::NewLine + [Environment]::NewLine +
+        "Close it completely and try again from Settings.",
+        "DocCipher Breaker") | Out-Null
+    Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+    exit 1
+}
 
-start "" "%TARGET%"
-del /q "%~f0" >nul 2>&1
-exit /b 0
+$backup = "$Target.old"
+try {
+    Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+    Move-Item -LiteralPath $Target -Destination $backup -Force
+    Move-Item -LiteralPath $Staged -Destination $Target -Force
+} catch {
+    # Put the previous build back rather than leaving no executable at all.
+    if ((Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $Target)) {
+        Move-Item -LiteralPath $backup -Destination $Target -Force
+    }
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    [System.Windows.Forms.MessageBox]::Show(
+        "The update could not be installed:" + [Environment]::NewLine +
+        $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine +
+        "Your existing version is unchanged.",
+        "DocCipher Breaker") | Out-Null
+    Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+    exit 1
+}
 
-:giveup
-del /q "%STAGED%" >nul 2>&1
-del /q "%~f0" >nul 2>&1
-exit /b 1
+# The update is already installed at this point. A relaunch failure must not
+# be treated as a failed update -- the user can start the app themselves.
+try {
+    Start-Process -FilePath $Target
+} catch {
+    # Nothing to do; the new build is in place either way.
+}
+
+# Tidy up after ourselves rather than leaving a script in the temp directory.
+Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+exit 0
 """
 
 
@@ -337,15 +378,38 @@ def apply_and_restart(target_exe: Path) -> dict:
     if not staged or not Path(staged).is_file():
         return {"started": False, "error": "No verified update has been downloaded."}
 
-    script = Path(tempfile.gettempdir()) / "doccipher_update.bat"
+    script = Path(tempfile.gettempdir()) / "doccipher_update.ps1"
     script.write_text(SWAP_SCRIPT, encoding="utf-8")
 
+    # -WindowStyle Hidden plus CREATE_NO_WINDOW: the user should never see a
+    # console appear while the app updates itself.
+    command = [
+        "powershell",
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle", "Hidden",
+        "-ExecutionPolicy", "Bypass",
+        "-File", str(script),
+        "-Target", str(target_exe),
+        "-Staged", str(staged),
+    ]
+
     try:
+        # CREATE_NO_WINDOW hides the console; CREATE_NEW_PROCESS_GROUP detaches
+        # it from this process so it survives our exit.
+        #
+        # DETACHED_PROCESS is deliberately NOT used: it gives the child no
+        # console at all, and powershell.exe silently does nothing without one.
+        # That was the reason updates appeared to download and then never
+        # install.
         subprocess.Popen(
-            ["cmd", "/c", str(script), str(target_exe), str(staged)],
+            command,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            | getattr(subprocess, "DETACHED_PROCESS", 0),
+            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
     except OSError as exc:
         return {"started": False, "error": str(exc)}

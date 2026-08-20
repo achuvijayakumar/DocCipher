@@ -900,3 +900,25 @@ def test_rate_limiting_is_not_reported_as_an_error(tmp_path, monkeypatch):
     assert result["checked"] is True
     assert result["available"] is False
     assert result["error"] is None      # quiet, not a red banner
+
+
+def test_swap_script_is_valid_powershell():
+    """param() must be the first statement or the script silently does nothing."""
+    from backend.updater import SWAP_SCRIPT
+
+    assert SWAP_SCRIPT.startswith("param("), "a leading newline breaks param()"
+    # No ping loop: each iteration spawned a visible console window.
+    assert "ping " not in SWAP_SCRIPT
+    # The wait must outlast a slow shutdown; 30s proved too short in practice.
+    assert "AddSeconds(180)" in SWAP_SCRIPT
+
+
+def test_swap_is_not_launched_detached():
+    """DETACHED_PROCESS leaves powershell.exe with no console, so it does nothing."""
+    import inspect
+
+    from backend import updater
+
+    source = inspect.getsource(updater.apply_and_restart)
+    assert "DETACHED_PROCESS" not in source.replace("DETACHED_PROCESS is deliberately", "")
+    assert "CREATE_NO_WINDOW" in source
