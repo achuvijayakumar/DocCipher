@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocCipher Breaker</title>
+<link rel="icon" href="/static/favicon.ico">
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('doccipher-theme');
+      document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+<style>
+  :root {
+    --bg:       #0d0d12;
+    --green:    #00ff41;
+    --text:     #ffffff;
+    --text-mid: #b4b8c5;
+    --text-dim: #6c7a89;
+    --line:     #2a2a38;
+    --sans: "Segoe UI Variable Text", "Segoe UI", Inter, Roboto,
+            system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", monospace;
+  }
+
+  /* Light is the default; see index.html for the shared rationale. */
+  :root[data-theme="light"] {
+    --bg:       #f4f5f7;
+    --green:    #0f8a34;
+    --text:     #14161a;
+    --text-mid: #444b55;
+    --text-dim: #6c7a89;
+    --line:     #e0e3e8;
+    --grid:     rgba(20, 30, 60, .045);
+    --glow:     rgba(15, 138, 52, .05);
+    --track:    #ffffff;
+    --wm:       #14161a;
+    --wm-op:    .045;
+  }
+
+  :root[data-theme="dark"] {
+    --grid:  rgba(0, 255, 65, .028);
+    --glow:  rgba(0, 255, 65, .06);
+    --track: #101018;
+    --wm:    var(--green);
+    --wm-op: .05;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+
+  /* Same blueprint grid as the app, no matrix rain. */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 46px 46px;
+  }
+
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, var(--glow), transparent 62%);
+  }
+
+  .watermark {
+    position: fixed; inset: -30%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 120px 40px;
+    transform: rotate(-24deg);
+    opacity: 0.30;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .watermark span {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--wm);
+    opacity: var(--wm-op);
+    white-space: nowrap;
+  }
+
+  .stage {
+    position: relative;
+    height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    animation: fade-in .4s ease-out;
+  }
+
+  body.leaving .stage { animation: fade-out .45s ease-in forwards; }
+
+  @keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+  .logo { width: 96px; height: 96px; }
+
+  h1 {
+    margin: 20px 0 0;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .version {
+    margin: 4px 0 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .subtitle {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+
+  .loader { margin-top: 34px; width: min(320px, 74vw); }
+
+  .track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--track);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .bar {
+    height: 100%; width: 0%;
+    border-radius: 999px;
+    background: var(--green);
+    transition: width .16s linear;
+  }
+
+  .loader-row {
+    display: flex; justify-content: space-between;
+    margin-top: 9px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  .loader-row .pct { font-family: var(--mono); }
+
+  .credits {
+    position: absolute;
+    left: 0; right: 0; bottom: 34px;
+    line-height: 1.9;
+  }
+
+  .author { font-size: 12.5px; color: var(--text-mid); }
+
+  .edu {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--text-dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stage { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="watermark" id="watermark" aria-hidden="true"></div>
+
+<div class="stage">
+  <img class="logo" src="/static/img/logo.svg" alt="DocCipher Breaker">
+  <h1>DocCipher Breaker</h1>
+  <p class="version">v1.0.0</p>
+  <p class="subtitle">Document Security Analysis Tool</p>
+
+  <div class="loader">
+    <div class="track"><div class="bar" id="bar"></div></div>
+    <div class="loader-row">
+      <span id="phase">Loading...</span>
+      <span class="pct" id="pct">0%</span>
+    </div>
+  </div>
+
+  <div class="credits">
+    <div class="author">Created by Achu Vijayakumar</div>
+    <div class="edu">FOR EDUCATIONAL PURPOSES ONLY</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Watermark tiles, built in JS so the notice does not bloat the markup.
+  const wm = document.getElementById('watermark');
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement('span');
+    s.textContent = 'FOR EDUCATIONAL PURPOSES ONLY';
+    frag.appendChild(s);
+  }
+  wm.appendChild(frag);
+
+  // Two-second load, then hand off to the app.
+  const DURATION = 2000;
+  const bar = document.getElementById('bar');
+  const pct = document.getElementById('pct');
+  const phase = document.getElementById('phase');
+  const started = performance.now();
+
+  (function tick(now) {
+    const p = Math.min(1, ((now || started) - started) / DURATION);
+    const percent = Math.round(p * 100);
+    bar.style.width = percent + '%';
+    pct.textContent = percent + '%';
+    if (p >= 1) phase.textContent = 'Ready';
+    if (p < 1) { requestAnimationFrame(tick); return; }
+    document.body.classList.add('leaving');
+    setTimeout(() => window.location.replace('/app'), 450);
+  })();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+DOCCIPHER BREAKER - EDUCATIONAL USE LICENSE
+
+Copyright (c) 2026 Achu Vijayakumar
+All rights reserved.
+
+FOR EDUCATIONAL PURPOSES ONLY
+
+
+1. GRANT
+
+Permission is granted, free of charge, to any person obtaining a copy of this
+software to use, study, and modify it for educational purposes, subject to the
+terms below.
+
+
+2. WHAT THIS SOFTWARE DOES
+
+This software removes editing restrictions from Microsoft Word (.docx)
+documents. A .docx file is a ZIP archive containing XML. When a document author
+applies "Restrict Editing" in Word, Word records that choice as a
+<w:documentProtection> element inside word/settings.xml. That element is an
+instruction to Word, not encryption: the document's text is stored in readable
+XML whether or not the element is present. This software removes that element
+and rebuilds the archive.
+
+The restriction is a courtesy lock. It signals the author's intent that the
+document not be altered. It is not a security boundary and was never designed
+as one.
+
+
+3. WHAT THIS SOFTWARE DOES NOT DO
+
+This software does NOT decrypt password-encrypted documents. Those use an
+entirely different file format (an encrypted OLE compound file) and are
+genuinely unreadable without the password. This software detects them and
+refuses to proceed. It contains no password cracking, brute-force, or
+cryptographic attack capability of any kind.
+
+
+4. PERMITTED USE
+
+You may use this software on documents you have the right to modify, including:
+
+  (a) documents you created;
+  (b) documents you own or administer;
+  (c) documents you have the owner's permission to edit;
+  (d) templates and forms you are authorised to adapt;
+  (e) your own documents whose restriction password has been lost;
+  (f) study of the OOXML file format and of this software itself.
+
+
+5. RESTRICTIONS
+
+You may NOT use this software to:
+
+  (a) alter a document you have no right to alter;
+  (b) modify contracts, agreements, records, invoices, transcripts,
+      certificates, or any instrument another party relies on being unaltered;
+  (c) defeat a restriction where doing so breaches a contract, a licence, an
+      employment or academic policy, or any applicable law;
+  (d) misrepresent an altered document as an original;
+  (e) commit fraud, forgery, or any other unlawful act.
+
+Removing a technical restriction does not grant permission. If you were not
+entitled to edit a document before using this software, you are not entitled to
+edit it afterwards. The absence of a lock is not consent.
+
+
+6. YOUR RESPONSIBILITY
+
+You are solely responsible for how you use this software and for ensuring your
+use complies with all applicable laws, regulations, contracts, and policies in
+your jurisdiction. Laws governing unauthorised modification of documents and
+computer systems vary by country and can carry civil and criminal penalties.
+
+The "FOR EDUCATIONAL PURPOSES ONLY" designation states the author's intent in
+publishing this software. It is a statement of purpose, not a legal exemption:
+it does not make an otherwise unlawful act lawful, and it does not transfer
+your responsibility to the author.
+
+
+7. NO WARRANTY
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+Although this software is designed never to modify your original files, no
+software is free of defects. Keep backups of any document that matters to you.
+
+
+8. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, DATA LOSS, OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THIS SOFTWARE OR ITS USE.
+
+The author is not responsible for misuse of this software.
+
+
+9. TRADEMARKS
+
+Microsoft, Word, and Windows are trademarks of Microsoft Corporation. This
+software is not affiliated with, endorsed by, or sponsored by Microsoft
+Corporation.
+
+
+10. ACCEPTANCE
+
+By using this software you acknowledge that you have read this licence, that
+you understand it, and that you agree to be bound by it. If you do not agree,
+do not use this software.
+
+
+Created by Achu Vijayakumar
+FOR EDUCATIONAL PURPOSES ONLY

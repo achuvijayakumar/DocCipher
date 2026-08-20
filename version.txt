@@ -1,0 +1,13 @@
+# DocCipher Breaker version manifest.
+# Machine-readable: the updater parses these key=value pairs.
+version=1.0.0
+released=2026-08-20
+name=DocCipher Breaker
+author=Achu Vijayakumar
+notice=FOR EDUCATIONAL PURPOSES ONLY
+# Where update.bat checks for a newer release. Point this at your own host.
+# The manifest there must be this same format and must carry a sha256= line
+# matching the published .exe, or the updater refuses to install it.
+update_url=https://example.invalid/doccipher/version.txt
+download_url=https://example.invalid/doccipher/DocCipherBreaker.exe
+sha256=
