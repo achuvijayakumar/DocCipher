@@ -169,36 +169,56 @@ curl "http://127.0.0.1:8000/api/inspect?path=C:\docs\report.docx"
 
 ## Updating
 
-Run `update.bat` from the folder containing the app.
+The app checks for a newer version in the background when it starts. If one is
+published, a modal offers to download and install it — no setup file, no manual
+reinstall. Turn the machine off the internet and the check simply finds nothing;
+nothing is blocked.
 
-The updater is deliberately strict, because a self-updater that fetches and
-executes a binary is the single most dangerous component in a desktop app:
+### Publishing a release
 
-1. Both the manifest URL and the download URL **must be HTTPS**. Plain HTTP is
-   refused — an update fetched over HTTP can be swapped in transit.
-2. The server's manifest **must carry a `sha256=` line**. An update with no
-   published checksum is refused rather than installed unverified.
-3. The download's actual SHA-256 **must match** that value. On any mismatch the
-   file is deleted and your current version is left untouched.
-4. The previous executable is kept as `DocCipherBreaker_old.exe` so you can roll
-   back by renaming it.
+1. Build:
 
-**To publish an update**, host a `version.txt` in this format and point
-`update_url` at it:
+   ```powershell
+   .uild.bat
+   ```
 
-```ini
-version=1.0.1
-released=2026-09-01
-download_url=https://your-host/DocCipherBreaker.exe
-sha256=<the exact SHA-256 of that exe, uppercase hex>
-```
+   It prints the SHA-256 of `release\DocCipherBreaker.exe` and writes it to
+   `release\SHA256SUMS.txt`.
 
-`build.bat` prints the executable's SHA-256 and writes it to
-`release\SHA256SUMS.txt` — paste that value into the `sha256=` line. If it does
-not match the file you upload, the updater will refuse the update for everyone.
+2. Bump `version.txt` and paste that hash in:
 
-Never point `update_url` at a host you do not control. Anyone who can serve that
-manifest can choose which binary your users run.
+   ```ini
+   version=1.0.1
+   released=2026-09-01
+   notes=What changed, shown in the update modal.
+   sha256=<the hash build.bat printed>
+   ```
+
+3. Commit and push `version.txt` — the app reads it from
+   `raw.githubusercontent.com/.../main/version.txt` to learn the latest version.
+
+4. Create a GitHub Release tagged `v1.0.1` and attach
+   `release\DocCipherBreaker.exe`. The manifest points at
+   `releases/latest/download/DocCipherBreaker.exe`, so the tag name does not
+   need to be edited each time.
+
+Existing installs pick it up on their next launch.
+
+### Why the checksum matters
+
+An updater that downloads and runs an executable is the most dangerous
+component in a desktop app. This one refuses to install unless:
+
+- both URLs are **HTTPS** (plain HTTP can be rewritten in transit);
+- the manifest publishes a **`sha256=`** value;
+- the download's **actual hash matches it exactly**.
+
+On any mismatch the file is deleted and the installed version is left alone.
+If `sha256=` is empty, no update is ever offered — so a release with a stale or
+missing hash fails safe rather than shipping an unverified binary.
+
+`update.bat` performs the same checks from the command line, for anyone who
+prefers not to use the in-app flow.
 
 ---
 
