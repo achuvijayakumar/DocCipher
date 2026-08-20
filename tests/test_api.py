@@ -860,3 +860,19 @@ def test_apply_endpoint_rejects_source_checkouts(client):
     res = client.post("/api/update/apply")
     assert res.status_code == 400
     assert "installed application" in res.json()["detail"]
+
+
+def test_raw_github_urls_have_an_api_fallback():
+    """raw.githubusercontent.com is blocked on some networks where github.com works."""
+    from backend.updater import _api_mirror
+
+    mirror = _api_mirror(
+        "https://raw.githubusercontent.com/owner/repo/main/version.txt"
+    )
+    assert mirror == (
+        "https://api.github.com/repos/owner/repo/contents/version.txt?ref=main"
+    )
+
+    # Anything not on the raw host has no mirror and must not be rewritten.
+    assert _api_mirror("https://example.com/version.txt") is None
+    assert _api_mirror("https://raw.githubusercontent.com/too/short") is None

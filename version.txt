@@ -14,4 +14,4 @@ notice=FOR EDUCATIONAL PURPOSES ONLY
 #   the updater refuses to install -- this is what stops a substituted binary.
 update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
 download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
-sha256=8CE19941667DE47B492891318F6CC7BD62F90BF3A60595D03DB24DD9589088DF
+sha256=1364BE45DFCA0A8F07063CBD77827ADCF681F35DF705CF3BA873EFE055F7AFDE

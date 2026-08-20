@@ -19,6 +19,7 @@ running .exe -- so a small batch script waits for exit, replaces the file and
 relaunches. The previous version is kept for rollback.
 """
 
+import base64
 import hashlib
 import json
 import os
@@ -130,6 +131,37 @@ def _fetch(url: str, timeout: int) -> bytes:
         return response.read(MAX_DOWNLOAD_BYTES + 1)
 
 
+# raw.githubusercontent.com is blocked on some corporate and ISP networks even
+# where github.com and api.github.com resolve fine. When the manifest lives
+# there, fall back to the Contents API, which serves the same bytes from a
+# different host.
+_RAW_PREFIX = "https://raw.githubusercontent.com/"
+
+
+def _api_mirror(url: str) -> Optional[str]:
+    """Translate a raw.githubusercontent.com URL into a Contents API URL."""
+    if not url.startswith(_RAW_PREFIX):
+        return None
+    rest = url[len(_RAW_PREFIX):]
+    parts = rest.split("/", 3)
+    if len(parts) < 4:
+        return None
+    owner, repo, ref, path = parts
+    return f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}"
+
+
+def _fetch_manifest(url: str, timeout: int) -> str:
+    """Fetch the manifest, retrying via the GitHub API if the raw host fails."""
+    try:
+        return _fetch(url, timeout).decode("utf-8", errors="replace")
+    except (urllib.error.URLError, OSError, TimeoutError):
+        mirror = _api_mirror(url)
+        if not mirror:
+            raise
+        payload = json.loads(_fetch(mirror, timeout).decode("utf-8", errors="replace"))
+        return base64.b64decode(payload["content"]).decode("utf-8", errors="replace")
+
+
 def check(current_version: str, manifest_path: Path) -> dict:
     """Ask the configured URL whether a newer build exists.
 
@@ -149,8 +181,7 @@ def check(current_version: str, manifest_path: Path) -> dict:
 
     try:
         _require_https(update_url, "update URL")
-        raw = _fetch(update_url, CHECK_TIMEOUT).decode("utf-8", errors="replace")
-        remote = _parse_manifest(raw)
+        remote = _parse_manifest(_fetch_manifest(update_url, CHECK_TIMEOUT))
     except (urllib.error.URLError, OSError, ValueError, TimeoutError) as exc:
         state.update(checked=True, available=False, error=f"{type(exc).__name__}: {exc}")
         return state.as_dict()
@@ -189,9 +220,7 @@ def download(manifest_path: Path, dest_dir: Path) -> dict:
 
     try:
         _require_https(update_url, "update URL")
-        remote = _parse_manifest(
-            _fetch(update_url, CHECK_TIMEOUT).decode("utf-8", errors="replace")
-        )
+        remote = _parse_manifest(_fetch_manifest(update_url, CHECK_TIMEOUT))
 
         download_url = remote.get("download_url", "")
         expected = remote.get("sha256", "").strip().upper()
