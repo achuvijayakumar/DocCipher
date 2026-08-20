@@ -1,6 +1,6 @@
 # DocCipher Breaker version manifest.
 # Machine-readable: the updater parses these key=value pairs.
-version=1.0.3
+version=1.0.2
 released=2026-08-20
 notes=Fixes installing updates, and stops console windows flashing during an update.
 name=DocCipher Breaker
@@ -14,4 +14,4 @@ notice=FOR EDUCATIONAL PURPOSES ONLY
 #   the updater refuses to install -- this is what stops a substituted binary.
 update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
 download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
-sha256=99F5C7ACE5049814A4D5721F1F7BD5506529E50997ABD5CA7EAB665CE887F79D
+sha256=6112CB5EE7BE77F218C4E0C0688EB31A2CFA9D6DB0BEDB3AAC189B9CE4FF26E4
