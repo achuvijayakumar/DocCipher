@@ -271,8 +271,7 @@
         (ok ? 'Unlocked Successfully!' : 'Processing Failed') + '</h2>' +
       '<div class="sm-rule"></div>' +
       stats + actions +
-      '<div class="sm-foot">DocCipher Breaker v1.0.0 &nbsp;|&nbsp; Created by Achu Vijayakumar ' +
-      '&nbsp;|&nbsp; <span class="edu">FOR EDUCATIONAL PURPOSES ONLY</span></div>';
+      '';
 
     successModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -789,22 +788,6 @@
     // The server already stamped data-theme onto <html>; sync the button label
     // without posting the value straight back.
     apply(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light', false);
-  })();
-
-  /* ---------------- watermark ---------------- */
-
-  // Built in JS rather than markup so the notice does not bloat the HTML
-  // source or get read out as page text by screen readers.
-  (function buildWatermark() {
-    const wm = document.getElementById('watermark');
-    if (!wm) return;
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < 120; i++) {
-      const s = document.createElement('span');
-      s.textContent = 'FOR EDUCATIONAL PURPOSES ONLY';
-      frag.appendChild(s);
-    }
-    wm.appendChild(frag);
   })();
 
   function humanSize(bytes) {

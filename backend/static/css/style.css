@@ -95,27 +95,6 @@ body::after {
   background: radial-gradient(ellipse at 50% 0%, var(--grid-glow), transparent 60%);
 }
 
-/* ---------- watermark ---------- */
-
-.watermark {
-  position: fixed; inset: -35%;
-  z-index: -1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 120px 40px;
-  transform: rotate(-24deg);
-  opacity: 0.30;
-  pointer-events: none;
-  user-select: none;
-}
-
-.watermark span {
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  color: var(--green);
-  opacity: 0.05;
-  white-space: nowrap;
-}
 
 /* ---------- layout ---------- */
 
@@ -925,9 +904,6 @@ table.history td:first-child { color: var(--text); }
   box-shadow: 0 1px 2px rgba(20, 25, 40, .05);
 }
 
-/* The watermark is a faint green wash on dark; on light it needs to be a
-   neutral grey or it tints the whole page. */
-:root[data-theme="light"] .watermark span { color: #14161a; opacity: .045; }
 
 /* ---------- theme toggle ---------- */
 

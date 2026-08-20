@@ -77,24 +77,7 @@
     background: radial-gradient(ellipse at 50% 40%, var(--glow), transparent 62%);
   }
 
-  .watermark {
-    position: fixed; inset: -30%;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 120px 40px;
-    transform: rotate(-24deg);
-    opacity: 0.30;
-    pointer-events: none;
-    user-select: none;
-  }
 
-  .watermark span {
-    font-size: 11px;
-    letter-spacing: 0.22em;
-    color: var(--wm);
-    opacity: var(--wm-op);
-    white-space: nowrap;
-  }
 
   .stage {
     position: relative;
@@ -180,8 +163,6 @@
 </head>
 <body>
 
-<div class="watermark" id="watermark" aria-hidden="true"></div>
-
 <div class="stage">
   <img class="logo" src="/static/img/logo.svg" alt="DocCipher Breaker">
   <h1>DocCipher Breaker</h1>
@@ -204,15 +185,6 @@
 
 <script>
 (function () {
-  // Watermark tiles, built in JS so the notice does not bloat the markup.
-  const wm = document.getElementById('watermark');
-  const frag = document.createDocumentFragment();
-  for (let i = 0; i < 80; i++) {
-    const s = document.createElement('span');
-    s.textContent = 'FOR EDUCATIONAL PURPOSES ONLY';
-    frag.appendChild(s);
-  }
-  wm.appendChild(frag);
 
   // Two-second load, then hand off to the app.
   const DURATION = 2000;
