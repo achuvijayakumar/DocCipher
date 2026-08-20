@@ -876,3 +876,27 @@ def test_raw_github_urls_have_an_api_fallback():
     # Anything not on the raw host has no mirror and must not be rewritten.
     assert _api_mirror("https://example.com/version.txt") is None
     assert _api_mirror("https://raw.githubusercontent.com/too/short") is None
+
+
+def test_rate_limiting_is_not_reported_as_an_error(tmp_path, monkeypatch):
+    """A 403 from the API mirror is transient -- it must not alarm the user."""
+    from backend import updater
+
+    def fake_fetch(url, timeout):
+        import urllib.error
+        if "raw.githubusercontent.com" in url:
+            raise urllib.error.URLError("blocked")
+        raise urllib.error.HTTPError(url, 403, "rate limit exceeded", {}, None)
+
+    monkeypatch.setattr(updater, "_fetch", fake_fetch)
+
+    manifest = tmp_path / "version.txt"
+    manifest.write_text(
+        "version=1.0.0\n"
+        "update_url=https://raw.githubusercontent.com/o/r/main/version.txt\n",
+        encoding="utf-8",
+    )
+    result = updater.check("1.0.0", manifest)
+    assert result["checked"] is True
+    assert result["available"] is False
+    assert result["error"] is None      # quiet, not a red banner

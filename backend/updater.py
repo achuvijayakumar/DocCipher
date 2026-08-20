@@ -150,6 +150,10 @@ def _api_mirror(url: str) -> Optional[str]:
     return f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}"
 
 
+class RateLimited(Exception):
+    """The API mirror is temporarily refusing requests. Not a real failure."""
+
+
 def _fetch_manifest(url: str, timeout: int) -> str:
     """Fetch the manifest, retrying via the GitHub API if the raw host fails."""
     try:
@@ -158,7 +162,22 @@ def _fetch_manifest(url: str, timeout: int) -> str:
         mirror = _api_mirror(url)
         if not mirror:
             raise
-        payload = json.loads(_fetch(mirror, timeout).decode("utf-8", errors="replace"))
+
+        try:
+            raw = _fetch(mirror, timeout).decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            # Unauthenticated API calls are capped at 60/hour per IP. Hitting
+            # that is a "try later", not a broken update channel.
+            if exc.code in (403, 429):
+                raise RateLimited(
+                    "GitHub is rate-limiting update checks from this network. "
+                    "The next check should succeed."
+                ) from exc
+            raise
+
+        payload = json.loads(raw)
+        if "content" not in payload:
+            raise ValueError(payload.get("message", "Unexpected response from GitHub."))
         return base64.b64decode(payload["content"]).decode("utf-8", errors="replace")
 
 
@@ -182,6 +201,10 @@ def check(current_version: str, manifest_path: Path) -> dict:
     try:
         _require_https(update_url, "update URL")
         remote = _parse_manifest(_fetch_manifest(update_url, CHECK_TIMEOUT))
+    except RateLimited:
+        # Transient and self-correcting -- stay quiet rather than alarm the user.
+        state.update(checked=True, available=False, error=None)
+        return state.as_dict()
     except (urllib.error.URLError, OSError, ValueError, TimeoutError) as exc:
         state.update(checked=True, available=False, error=f"{type(exc).__name__}: {exc}")
         return state.as_dict()
