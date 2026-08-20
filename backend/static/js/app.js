@@ -651,6 +651,10 @@
   const fmSub       = document.getElementById('fm-sub');
   const settingsBtn = document.getElementById('settings-btn');
   const fmBackdrop  = document.getElementById('folder-backdrop');
+  const fmUpdateSec = document.getElementById('fm-update-section');
+  const fmVersion   = document.getElementById('fm-version');
+  const fmUpStatus  = document.getElementById('fm-update-status');
+  const fmCheckBtn  = document.getElementById('fm-check-updates');
 
   let saveDir = null;
   let firstRun = false;
@@ -680,6 +684,10 @@
     // The first-run prompt has no escape hatch -- a folder must be chosen.
     fmCancel.classList.toggle('hidden', firstRun);
     fmSave.textContent = firstRun ? 'USE THIS FOLDER' : 'SAVE';
+
+    // Updates belong in settings, not in the first-run folder prompt.
+    fmUpdateSec.classList.toggle('hidden', firstRun);
+    if (!firstRun) refreshUpdateLine();
 
     folderModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -736,6 +744,50 @@
     fmError.textContent = message;
     fmError.classList.remove('hidden');
   }
+
+  async function refreshUpdateLine(forceCheck) {
+    fmUpStatus.textContent = forceCheck ? 'Checking…' : '';
+    fmUpStatus.className = 'fm-update-status';
+    if (forceCheck) fmCheckBtn.disabled = true;
+
+    let data;
+    try {
+      const res = await fetch(forceCheck ? '/api/update/check' : '/api/update',
+                              forceCheck ? { method: 'POST' } : undefined);
+      data = await res.json();
+    } catch (e) {
+      fmUpStatus.textContent = 'Could not reach the update server.';
+      fmUpStatus.className = 'fm-update-status warn';
+      fmCheckBtn.disabled = false;
+      return;
+    }
+
+    fmCheckBtn.disabled = false;
+    if (data.current) fmVersion.textContent = data.current;
+
+    if (data.available) {
+      fmUpStatus.textContent = 'Version ' + data.latest + ' is available.';
+      fmUpStatus.className = 'fm-update-status ok';
+      fmCheckBtn.textContent = 'INSTALL UPDATE';
+      fmCheckBtn.onclick = () => { closeFolderModal(); showUpdate(data); };
+      return;
+    }
+
+    fmCheckBtn.textContent = 'CHECK FOR UPDATES';
+    fmCheckBtn.onclick = () => refreshUpdateLine(true);
+
+    if (data.error) {
+      fmUpStatus.textContent = 'Update check failed.';
+      fmUpStatus.className = 'fm-update-status warn';
+    } else if (forceCheck) {
+      fmUpStatus.textContent = 'You are up to date.';
+      fmUpStatus.className = 'fm-update-status ok';
+    } else if (data.checked) {
+      fmUpStatus.textContent = 'Up to date.';
+    }
+  }
+
+  fmCheckBtn.addEventListener('click', () => refreshUpdateLine(true));
 
   fmCancel.addEventListener('click', closeFolderModal);
   fmBackdrop.addEventListener('click', closeFolderModal);

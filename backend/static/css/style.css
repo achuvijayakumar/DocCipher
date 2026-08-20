@@ -1164,3 +1164,46 @@ table.history td:first-child { color: var(--text); }
   .um-arrow { transform: rotate(90deg); }
   .update-modal { padding: 20px 16px; }
 }
+
+/* ---------- settings: update section ---------- */
+
+.fm-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.fm-update-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.fm-update-text { min-width: 0; }
+
+.fm-update-text .k { display: block; margin-bottom: 2px; }
+
+.fm-version {
+  display: block;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fm-update-status {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.fm-update-status.ok   { color: var(--green); }
+.fm-update-status.warn { color: var(--amber); }
+
+#fm-check-updates { flex: none; white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .fm-update-row { flex-direction: column; align-items: stretch; }
+  #fm-check-updates { width: 100%; justify-content: center; }
+}
