@@ -211,12 +211,35 @@ def test_splash_route_replays_on_demand(client):
 
 
 def test_about_dialog_carries_required_branding(client):
+    from backend.main import VERSION
+
     text = client.get("/about").text
     assert "Achu Vijayakumar" in text
     assert "FOR EDUCATIONAL PURPOSES ONLY" in text
-    assert "1.0.0" in text
+    # Track the constant, not a literal, so a version bump does not fail here.
+    assert VERSION in text
     assert "2026" in text
     assert "not responsible for misuse" in text
+
+
+def test_version_is_consistent_everywhere(client):
+    """A build that misreports its own version breaks the updater's comparison.
+
+    The version lives in several files that are easy to bump out of step, so
+    this pins them together.
+    """
+    from backend.main import VERSION
+    from backend.updater import read_local_manifest
+
+    assert f"v{VERSION}" in client.get("/app").text
+    assert f"v{VERSION}" in client.get("/splash").text
+
+    repo_root = Path(__file__).resolve().parents[1]
+    manifest = read_local_manifest(repo_root / "version.txt")
+    assert manifest.get("version") == VERSION, "version.txt disagrees with backend.VERSION"
+
+    iss = (repo_root / "installer" / "setup.iss").read_text(encoding="utf-8")
+    assert f'#define AppVersion     "{VERSION}"' in iss, "setup.iss disagrees with backend.VERSION"
 
 
 def test_favicon_is_served(client):
