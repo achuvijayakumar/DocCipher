@@ -5,9 +5,12 @@ released=2026-08-20
 name=DocCipher Breaker
 author=Achu Vijayakumar
 notice=FOR EDUCATIONAL PURPOSES ONLY
-# Where update.bat checks for a newer release. Point this at your own host.
-# The manifest there must be this same format and must carry a sha256= line
-# matching the published .exe, or the updater refuses to install it.
-update_url=https://example.invalid/doccipher/version.txt
-download_url=https://example.invalid/doccipher/DocCipherBreaker.exe
+# update_url: the raw copy of THIS file on the default branch. The app reads
+#   it to learn the latest version number, so it must always be current.
+# download_url: the exe attached to the newest GitHub Release. Large binaries
+#   belong in Releases, not in the repository itself.
+# sha256: the exact hash of that exe, printed by build.bat. Without a match
+#   the updater refuses to install -- this is what stops a substituted binary.
+update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
+download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
 sha256=
