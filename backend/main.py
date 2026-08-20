@@ -8,6 +8,7 @@ import argparse
 import os
 import re
 import secrets
+import subprocess
 import sys
 import threading
 import time
@@ -23,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import database
-from . import dispatch
+from . import dispatch, updater
 from .cracker import CrackError, human_size, unique_path
 from .icons import icon
 from .models import (
@@ -42,6 +43,7 @@ YEAR = "2026"
 EDU_NOTICE = "FOR EDUCATIONAL PURPOSES ONLY"
 WINDOW_TITLE = f"{APP_NAME} — Created by {AUTHOR}"
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+PAGE_SIZE = 10  # activity log rows per page
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -56,8 +58,51 @@ def app_data_dir() -> Path:
 
 
 DATA_DIR = app_data_dir()
-OUTPUT_DIR = DATA_DIR / "unlocked"
+OUTPUT_DIR = DATA_DIR / "unlocked"      # fallback until the user picks a folder
 DB_PATH = DATA_DIR / "history.db"
+
+
+def manifest_path() -> Path:
+    """version.txt sits next to the executable once installed."""
+    exe = updater.running_exe()
+    if exe:
+        return exe.parent / "version.txt"
+    return Path(__file__).resolve().parent.parent / "version.txt"
+
+
+def default_save_dir() -> Path:
+    """The folder suggested the first time the user is asked."""
+    docs = Path(os.path.expanduser("~")) / "Documents"
+    base = docs if docs.is_dir() else Path(os.path.expanduser("~"))
+    return base / "DocCipher Breaker"
+
+
+def save_dir() -> Path:
+    """Where unlocked files are written.
+
+    Read per request rather than cached at import, so changing it in Settings
+    applies straight away. Falls back to the app data directory if the chosen
+    folder has since been deleted or made read-only.
+    """
+    chosen = None
+    try:
+        chosen = database.get_setting("save_dir")
+    except Exception:
+        pass
+
+    if chosen:
+        path = Path(chosen)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / ".doccipher_write_test"
+            probe.touch()
+            probe.unlink()
+            return path
+        except OSError:
+            pass          # unwritable now -- fall through to the safe default
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return OUTPUT_DIR
 
 # token -> absolute path, for /download. Keeps real paths out of URLs.
 _downloads: dict[str, str] = {}
@@ -70,6 +115,9 @@ _splash_shown = False
 async def lifespan(_: FastAPI):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     database.init(DB_PATH)
+    # Background and non-blocking: with no internet this simply reports nothing
+    # available, and the app starts exactly as it always does.
+    updater.check_in_background(VERSION, manifest_path())
     yield
 
 
@@ -148,6 +196,25 @@ def _safe_local_path(raw: str) -> Path:
     return path
 
 
+def current_theme() -> str:
+    """The persisted theme, defaulting to light."""
+    try:
+        value = database.get_setting("theme", "light")
+    except Exception:
+        return "light"
+    return value if value in ("light", "dark") else "light"
+
+
+def _with_theme(html: str) -> str:
+    """Stamp the persisted theme onto <html> before the page is sent.
+
+    Doing this server-side means the correct palette is present in the very
+    first byte the renderer sees -- no flash, and no dependency on localStorage.
+    """
+    return html.replace('<html lang="en" data-theme="light">',
+                        f'<html lang="en" data-theme="{current_theme()}">', 1)
+
+
 # ------------------------------------------------------------------ pages
 
 
@@ -160,27 +227,150 @@ def index() -> HTMLResponse:
     """
     global _splash_shown
     if _splash_shown:
-        return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+        return HTMLResponse(_with_theme((STATIC_DIR / "index.html").read_text(encoding="utf-8")))
     _splash_shown = True
-    return HTMLResponse((STATIC_DIR / "splash.html").read_text(encoding="utf-8"))
+    return HTMLResponse(_with_theme((STATIC_DIR / "splash.html").read_text(encoding="utf-8")))
 
 
 @app.get("/app", response_class=HTMLResponse)
 def application() -> HTMLResponse:
     """The main UI, reachable directly and used as the splash screen's target."""
-    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+    return HTMLResponse(_with_theme((STATIC_DIR / "index.html").read_text(encoding="utf-8")))
 
 
 @app.get("/splash", response_class=HTMLResponse)
 def splash() -> HTMLResponse:
     """Replay the splash screen on demand."""
-    return HTMLResponse((STATIC_DIR / "splash.html").read_text(encoding="utf-8"))
+    return HTMLResponse(_with_theme((STATIC_DIR / "splash.html").read_text(encoding="utf-8")))
 
 
 @app.get("/about", response_class=HTMLResponse)
 def about() -> HTMLResponse:
     """About dialog content, loaded into the UI's modal by HTMX."""
     return HTMLResponse(_render_about())
+
+
+@app.get("/api/update")
+def api_update_status() -> JSONResponse:
+    """Current update state. Cheap; the network call happens in the background."""
+    return JSONResponse(updater.state.as_dict())
+
+
+@app.post("/api/update/check")
+def api_update_check() -> JSONResponse:
+    """Re-run the check on demand (the Settings dialog offers this)."""
+    return JSONResponse(updater.check(VERSION, manifest_path()))
+
+
+@app.post("/api/update/download")
+def api_update_download() -> JSONResponse:
+    """Download the published build and verify its checksum before staging it."""
+    return JSONResponse(updater.download(manifest_path(), DATA_DIR / "updates"))
+
+
+@app.post("/api/update/apply")
+def api_update_apply() -> JSONResponse:
+    """Swap in the verified build and relaunch.
+
+    Only meaningful in the packaged app -- running from source there is no
+    single .exe to replace.
+    """
+    exe = updater.running_exe()
+    if not exe:
+        raise HTTPException(
+            400, "Updates apply to the installed application, not a source checkout."
+        )
+
+    result = updater.apply_and_restart(exe)
+    if not result.get("started"):
+        raise HTTPException(500, result.get("error") or "Could not start the updater.")
+
+    # Give the response time to reach the UI before the process exits.
+    def quit_soon() -> None:
+        time.sleep(1.5)
+        os._exit(0)
+
+    threading.Thread(target=quit_soon, daemon=True).start()
+    return JSONResponse({"restarting": True})
+
+
+@app.get("/api/save-dir")
+def api_get_save_dir() -> JSONResponse:
+    """Current save folder, plus whether the user has ever chosen one."""
+    chosen = database.get_setting("save_dir")
+    return JSONResponse(
+        {
+            "path": str(save_dir()),
+            "configured": bool(chosen),
+            "suggested": str(default_save_dir()),
+        }
+    )
+
+
+@app.post("/api/save-dir")
+def api_set_save_dir(path: str = Form(...)) -> JSONResponse:
+    """Persist the folder unlocked files are written to."""
+    candidate = Path(path.strip()).expanduser()
+
+    if not candidate.is_absolute():
+        raise HTTPException(400, "Please choose a full folder path.")
+
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        probe = candidate / ".doccipher_write_test"
+        probe.touch()
+        probe.unlink()
+    except OSError as exc:
+        raise HTTPException(400, f"That folder cannot be written to: {exc}") from exc
+
+    database.set_setting("save_dir", str(candidate))
+    return JSONResponse({"path": str(candidate), "configured": True})
+
+
+@app.post("/api/browse-folder")
+def api_browse_folder() -> JSONResponse:
+    """Open the native folder picker.
+
+    Only works when running inside the desktop window; the browser fallback
+    has no way to show an OS dialog, so it reports unavailable and the UI asks
+    the user to type a path instead.
+    """
+    try:
+        import webview
+    except ImportError:
+        return JSONResponse({"available": False, "path": None})
+
+    windows = getattr(webview, "windows", None)
+    if not windows:
+        return JSONResponse({"available": False, "path": None})
+
+    try:
+        result = windows[0].create_file_dialog(
+            webview.FOLDER_DIALOG, directory=str(save_dir())
+        )
+    except Exception:
+        return JSONResponse({"available": False, "path": None})
+
+    chosen = result[0] if result else None
+    return JSONResponse({"available": True, "path": chosen})
+
+
+@app.get("/api/theme")
+def api_get_theme() -> JSONResponse:
+    return JSONResponse({"theme": current_theme()})
+
+
+@app.post("/api/theme")
+def api_set_theme(theme: str = Form(...)) -> JSONResponse:
+    """Persist the chosen theme server-side.
+
+    Stored in SQLite rather than only in localStorage so the choice survives a
+    WebView2 profile reset and is shared by the app window and the browser.
+    """
+    if theme not in ("light", "dark"):
+        raise HTTPException(400, "theme must be 'light' or 'dark'")
+    database.set_setting("theme", theme)
+    return JSONResponse({"theme": theme})
 
 
 @app.get("/favicon.ico")
@@ -242,7 +432,7 @@ async def upload(
     renamed = unique_path(renamed)
     staged.replace(renamed)
 
-    result = _run_crack(renamed, OUTPUT_DIR, cleanup_source=True)
+    result = _run_crack(renamed, save_dir(), cleanup_source=True)
     if format == "json":
         return JSONResponse(result)
     return HTMLResponse(_render_result(result))
@@ -266,11 +456,24 @@ def history_fragment(
     search: Optional[str] = Query(None),
     status: Optional[str] = Query("all"),
     file_format: Optional[str] = Query("all"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(PAGE_SIZE, ge=5, le=100),
 ) -> HTMLResponse:
+    total = database.count_history(search=search, status=status, file_format=file_format)
+    pages = max(1, -(-total // per_page))          # ceiling division
+    page = min(page, pages)                        # a filter change can shrink the range
+
     rows = database.list_history(
-        search=search, status=status, file_format=file_format, limit=100
+        search=search,
+        status=status,
+        file_format=file_format,
+        limit=per_page,
+        offset=(page - 1) * per_page,
     )
-    return HTMLResponse(_render_history(rows))
+    return HTMLResponse(
+        _render_history(rows)
+        + _render_pagination(page, pages, total, per_page, len(rows))
+    )
 
 
 @app.get("/stats", response_class=HTMLResponse)
@@ -368,18 +571,44 @@ def download(token: str) -> FileResponse:
     )
 
 
-@app.post("/reveal/{history_id}")
-def reveal(history_id: int) -> JSONResponse:
-    """Open the output file's folder in Explorer. Local desktop app only."""
+def _recorded_output(history_id: int) -> Path:
     entry = database.get(history_id)
     if not entry or not entry.get("unlocked_path"):
         raise HTTPException(404, "No output file recorded for that entry")
     target = Path(entry["unlocked_path"])
     if not target.exists():
         raise HTTPException(404, "File no longer exists")
+    return target
+
+
+@app.post("/reveal/{history_id}")
+def reveal(history_id: int) -> JSONResponse:
+    """Open the containing folder with the file selected. Desktop app only."""
+    target = _recorded_output(history_id)
     if sys.platform == "win32":
-        os.startfile(target.parent)  # noqa: S606 -- opening a folder locally is the feature
+        # /select, highlights the file rather than just opening the folder.
+        # The path is passed as a separate argument, never through a shell.
+        subprocess.Popen(["explorer", f"/select,{target}"])  # noqa: S603
     return JSONResponse({"opened": str(target.parent)})
+
+
+@app.post("/open/{history_id}")
+def open_output(history_id: int) -> JSONResponse:
+    """Open the unlocked file in its default application."""
+    target = _recorded_output(history_id)
+    if sys.platform == "win32":
+        os.startfile(target)  # noqa: S606 -- opening the user's own output is the feature
+    return JSONResponse({"opened": str(target)})
+
+
+@app.post("/api/reveal-save-dir")
+def reveal_save_dir() -> JSONResponse:
+    """Open the folder unlocked files are written to."""
+    folder = save_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        os.startfile(folder)  # noqa: S606
+    return JSONResponse({"opened": str(folder)})
 
 
 # ------------------------------------------------------------- rendering
@@ -510,6 +739,50 @@ def _render_history(rows: list) -> str:
   </tr></thead>
   <tbody>{''.join(body)}</tbody>
 </table>
+"""
+
+
+def _render_pagination(
+    page: int, pages: int, total: int, per_page: int, showing: int
+) -> str:
+    """Page controls for the activity log.
+
+    Each control re-requests /history through HTMX and includes the filter
+    inputs, so paging never silently drops the current search or filters.
+    """
+    if total == 0:
+        return ""
+
+    first = (page - 1) * per_page + 1
+    last = first + showing - 1
+
+    def button(target: int, label: str, disabled: bool, aria: str) -> str:
+        if disabled:
+            return (
+                f'<button class="btn ghost page-btn" disabled aria-label="{aria}">{label}</button>'
+            )
+        return (
+            f'<button class="btn ghost page-btn" aria-label="{aria}" '
+            f'hx-get="/history?page={target}" hx-target="#history-table" '
+            f'hx-include="#history-search,#history-status,#history-format">{label}</button>'
+        )
+
+    prev_icon = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>'
+    next_icon = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg>'
+
+    return f"""
+<div class="pager">
+  <span class="pager-count">
+    Showing <b>{first}–{last}</b> of <b>{total}</b>
+  </span>
+  <div class="pager-controls">
+    {button(1, "First", page <= 1, "First page")}
+    {button(page - 1, prev_icon + "Prev", page <= 1, "Previous page")}
+    <span class="pager-page">Page {page} of {pages}</span>
+    {button(page + 1, "Next" + next_icon, page >= pages, "Next page")}
+    {button(pages, "Last", page >= pages, "Last page")}
+  </div>
+</div>
 """
 
 

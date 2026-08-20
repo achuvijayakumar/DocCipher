@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS history (
 );
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_history_status ON history(status);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 # Columns added after v1.0.0. Existing databases are migrated in place on
@@ -139,6 +144,28 @@ def list_history(
     return [dict(row) for row in rows]
 
 
+def count_history(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    file_format: Optional[str] = None,
+) -> int:
+    """Total rows matching the same filters list_history() uses."""
+    clauses, params = [], []
+    if search:
+        clauses.append("(original_filename LIKE ? OR unlocked_filename LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%"])
+    if status and status.lower() != "all":
+        clauses.append("status = ?")
+        params.append(status.lower())
+    if file_format and file_format.lower() != "all":
+        clauses.append("file_format = ?")
+        params.append(file_format.lower())
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    with connect() as conn:
+        return conn.execute(f"SELECT COUNT(*) AS n FROM history {where}", params).fetchone()["n"]
+
+
 def get(entry_id: int) -> Optional[dict]:
     with connect() as conn:
         row = conn.execute("SELECT * FROM history WHERE id = ?", (entry_id,)).fetchone()
@@ -166,6 +193,27 @@ def stats() -> dict:
             """
         ).fetchone()
     return dict(row)
+
+
+def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Read a persisted UI preference (e.g. the chosen theme)."""
+    with connect() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    """Persist a UI preference.
+
+    Stored server-side rather than in localStorage so the choice survives a
+    WebView2 profile reset, and so the app window and browser fallback agree.
+    """
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
 
 
 def clear() -> int:

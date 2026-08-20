@@ -33,6 +33,18 @@ MASTER = 1024
 
 
 def render_png(out: Path, size: int) -> Path:
+    """Rasterise logo.svg at `size`, then crop to the artwork and centre it.
+
+    Two things have to be forced, or the icon comes out wrong:
+
+    1. The SVG carries width/height attributes (512). Left alone, a 1024px
+       viewport renders it at 512 in the top-left corner, so every downscaled
+       frame ends up a tiny blob with empty space around it -- which is exactly
+       what made the taskbar icon unreadable.
+    2. Even when scaled, the drawing does not touch its own viewBox edges. The
+       result is trimmed to the opaque pixels and re-centred with a small,
+       deliberate margin, so the skull fills the icon.
+    """
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
@@ -41,12 +53,49 @@ def render_png(out: Path, size: int) -> Path:
             viewport={"width": size, "height": size}, device_scale_factor=1
         )
         page.goto(SVG.resolve().as_uri())
-        # Freeze SMIL so the exported still is deterministic.
-        page.evaluate("() => document.querySelector('svg')?.pauseAnimations?.()")
+        # Make the SVG fill the viewport regardless of its own width/height.
+        page.evaluate(
+            """(px) => {
+                const svg = document.querySelector('svg');
+                svg.setAttribute('width', px);
+                svg.setAttribute('height', px);
+                svg.style.width = px + 'px';
+                svg.style.height = px + 'px';
+                svg.style.display = 'block';
+                if (document.documentElement) document.documentElement.style.margin = '0';
+                if (document.body) document.body.style.margin = '0';
+                svg.pauseAnimations?.();
+            }""",
+            size,
+        )
         page.wait_for_timeout(250)
         page.screenshot(path=str(out), omit_background=True)
         browser.close()
+
+    _trim_and_centre(out, size)
     return out
+
+
+def _trim_and_centre(path: Path, size: int, margin: float = 0.04) -> None:
+    """Crop to the opaque artwork and centre it on a square canvas."""
+    img = Image.open(path).convert("RGBA")
+    bbox = img.getbbox()
+    if not bbox:
+        return
+
+    art = img.crop(bbox)
+    inner = max(1, int(size * (1 - margin * 2)))
+
+    # Preserve aspect ratio; scale the longer edge to fit the inner box.
+    scale = min(inner / art.width, inner / art.height)
+    art = art.resize(
+        (max(1, round(art.width * scale)), max(1, round(art.height * scale))),
+        Image.LANCZOS,
+    )
+
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(art, ((size - art.width) // 2, (size - art.height) // 2), art)
+    canvas.save(path)
 
 
 def write_ico(source: Image.Image, out: Path, sizes: list[int]) -> None:

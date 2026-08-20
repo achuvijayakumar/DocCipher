@@ -1,23 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
-     role="img" aria-label="DocCipher Breaker — red skull with one glowing green eye">
+     role="img" aria-label="DocCipher Breaker">
   <title>DocCipher Breaker</title>
 
+  <!--
+    Red skull with one glowing green eye.
+
+    The skull is drawn without the rounded background plate an earlier version
+    used. The plate looked good large, but at 16px it took most of the icon and
+    squeezed the skull down to an unreadable dot in the taskbar. Everything that
+    gave the mark its depth - gradient bone, orange rim light, brow ridge, glow
+    - is kept; only the frame is gone, so the silhouette itself is the icon.
+  -->
+
   <defs>
-    <!-- Blood-red body gradient for the skull -->
     <linearGradient id="boneGrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#ff2d55"/>
       <stop offset="55%"  stop-color="#e00035"/>
       <stop offset="100%" stop-color="#8c0020"/>
     </linearGradient>
 
-    <!-- Outer red aura -->
-    <radialGradient id="redAura" cx="50%" cy="46%" r="52%">
-      <stop offset="0%"   stop-color="#ff0040" stop-opacity="0.55"/>
-      <stop offset="60%"  stop-color="#ff0040" stop-opacity="0.16"/>
-      <stop offset="100%" stop-color="#ff0040" stop-opacity="0"/>
-    </radialGradient>
-
-    <!-- Green glow around the live eye -->
     <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
       <stop offset="0%"   stop-color="#ccffdd" stop-opacity="1"/>
       <stop offset="28%"  stop-color="#00ff41" stop-opacity="0.95"/>
@@ -25,14 +26,13 @@
       <stop offset="100%" stop-color="#00ff41" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- Warm orange rim light -->
     <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%"   stop-color="#ff6600" stop-opacity="0.9"/>
       <stop offset="100%" stop-color="#ff6600" stop-opacity="0"/>
     </linearGradient>
 
     <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feGaussianBlur stdDeviation="7" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
@@ -41,86 +41,58 @@
       <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
-    <!-- Matrix rain: faint 0/1 columns behind the skull -->
-    <pattern id="matrixCode" x="0" y="0" width="34" height="96" patternUnits="userSpaceOnUse">
-      <text x="6" y="16" font-family="monospace" font-size="15" fill="#00ff41" opacity="0.30">0</text>
-      <text x="6" y="42" font-family="monospace" font-size="15" fill="#00ff41" opacity="0.16">1</text>
-      <text x="6" y="68" font-family="monospace" font-size="15" fill="#00ff41" opacity="0.24">1</text>
-      <text x="6" y="92" font-family="monospace" font-size="15" fill="#00ff41" opacity="0.11">0</text>
-    </pattern>
-
-    <!-- Keeps the code rain inside the rounded plate -->
-    <clipPath id="plateClip">
-      <rect x="16" y="16" width="480" height="480" rx="96"/>
-    </clipPath>
-
-    <!-- The jaw/teeth gap, punched out of the skull silhouette -->
+    <!-- Jaw gaps punched out of the skull silhouette. -->
     <mask id="skullMask">
       <rect width="512" height="512" fill="#000"/>
       <g fill="#fff">
-        <path d="M256 72c-49 0-90 15-118 43-27 27-40 63-40 105 0 26 6 48 17 67 8 14 17 25 24 35
-                 7 10 11 19 12 30l4 33c2 17 15 27 33 27h136c18 0 31-10 33-27l4-33c1-11 5-20 12-30
-                 7-10 16-21 24-35 11-19 17-41 17-67 0-42-13-78-40-105-28-28-69-43-118-43z"/>
+        <path d="M256 30c-92 0-158 66-158 156 0 43 15 75 36 100 12 15 18 26 20 44l4 36
+                 c2 18 15 28 33 28h130c18 0 31-10 33-28l4-36c2-18 8-29 20-44
+                 21-25 36-57 36-100 0-90-66-156-158-156z"/>
       </g>
-      <!-- teeth separators -->
-      <g stroke="#000" stroke-width="7">
-        <path d="M256 366v54M212 370v46M300 370v46M172 376v34M340 376v34"/>
-        <path d="M150 366h212"/>
+      <g stroke="#000" stroke-width="9">
+        <path d="M256 372v50M212 374v46M300 374v46M172 378v38M340 378v38"/>
       </g>
     </mask>
   </defs>
 
-  <!-- background plate -->
-  <rect x="16" y="16" width="480" height="480" rx="96" fill="#0a0a0f"/>
-  <g clip-path="url(#plateClip)">
-    <rect x="16" y="16" width="480" height="480" fill="url(#matrixCode)"/>
-    <rect x="16" y="16" width="480" height="480" fill="url(#redAura)"/>
-  </g>
-  <rect x="16" y="16" width="480" height="480" rx="96"
-        fill="none" stroke="#00ff41" stroke-opacity="0.45" stroke-width="3"/>
-
-  <!-- skull -->
   <g filter="url(#softGlow)">
-    <!-- Silhouette, with the tooth gaps masked out -->
-    <rect x="80" y="60" width="352" height="380" fill="url(#boneGrad)" mask="url(#skullMask)"/>
+    <!-- Silhouette, with the tooth gaps masked out. -->
+    <rect x="60" y="10" width="392" height="450" fill="url(#boneGrad)" mask="url(#skullMask)"/>
 
-    <!-- Orange rim light along the upper-left cranium -->
-    <path d="M150 210c4-46 22-79 52-99 20-13 43-21 68-24"
-          fill="none" stroke="url(#rimGrad)" stroke-width="15" stroke-linecap="round" opacity="0.85"/>
+    <!-- Rim light sweeping the upper-left temple. -->
+    <path d="M152 200c4-48 23-83 55-104 21-14 45-22 71-25"
+          fill="none" stroke="url(#rimGrad)" stroke-width="16"
+          stroke-linecap="round" opacity="0.85"/>
 
-    <path d="M136 186c34-16 74-18 108-6M268 180c34-12 74-10 108 6"
-          fill="none" stroke="#8c0020" stroke-width="9" stroke-linecap="round" opacity="0.8"/>
+    <!-- Brow ridge: the strongest "this is a skull" cue at small sizes. -->
+    <path d="M132 186c36-17 78-19 114-6M266 180c36-13 78-11 114 6"
+          fill="none" stroke="#8c0020" stroke-width="10"
+          stroke-linecap="round" opacity="0.8"/>
 
-    <!-- Dead eye socket (left as drawn / viewer's left) -->
-    <path d="M150 232c0-30 24-50 54-50s52 22 52 52c0 28-22 48-52 48s-54-22-54-50z" fill="#0a0a0f"/>
-    <path d="M150 232c0-30 24-50 54-50s52 22 52 52c0 28-22 48-52 48s-54-22-54-50z"
-          fill="none" stroke="#ff0040" stroke-opacity="0.5" stroke-width="3"/>
+    <!-- Dead socket. -->
+    <path d="M146 232c0-32 26-53 57-53s55 23 55 55c0 30-23 51-55 51s-57-23-57-53z"
+          fill="#12000a"/>
 
-    <!-- Nasal cavity -->
-    <path d="M256 292l-26 46c-3 6 1 12 8 12h36c7 0 11-6 8-12z" fill="#0a0a0f"/>
+    <!-- Nasal cavity. -->
+    <path d="M256 296l-27 48c-3 6 1 13 8 13h38c7 0 11-7 8-13z" fill="#12000a"/>
 
-    <!-- Cheek shadow -->
-    <path d="M120 300c14 22 30 34 52 40M392 300c-14 22-30 34-52 40"
-          fill="none" stroke="#8c0020" stroke-width="6" stroke-linecap="round" opacity="0.65"/>
+    <!-- Cheek shadows. -->
+    <path d="M140 300c12 20 27 32 47 38M372 300c-12 20-27 32-47 38"
+          fill="none" stroke="#8c0020" stroke-width="7"
+          stroke-linecap="round" opacity="0.5"/>
   </g>
 
-  <!-- the live green eye -->
+  <!-- The live green eye. -->
   <g>
-    <circle cx="308" cy="234" r="74" fill="url(#eyeGlow)" opacity="0.85">
+    <circle cx="312" cy="234" r="76" fill="url(#eyeGlow)" opacity="0.85">
       <animate attributeName="opacity" values="0.85;0.45;0.85" dur="2.4s" repeatCount="indefinite"/>
     </circle>
-    <!-- socket -->
-    <path d="M256 234c0-30 24-52 54-52s52 22 52 52c0 28-22 48-52 48s-54-20-54-48z" fill="#031008"/>
-    <!-- iris -->
-    <circle cx="308" cy="232" r="27" fill="#00ff41" filter="url(#hardGlow)">
-      <animate attributeName="r" values="27;30;27" dur="2.4s" repeatCount="indefinite"/>
+    <path d="M254 234c0-32 26-55 57-55s55 23 55 55c0 30-23 51-55 51s-57-21-57-51z"
+          fill="#031008"/>
+    <circle cx="312" cy="232" r="29" fill="#00ff41" filter="url(#hardGlow)">
+      <animate attributeName="r" values="29;32;29" dur="2.4s" repeatCount="indefinite"/>
     </circle>
-    <!-- pupil + specular -->
-    <circle cx="308" cy="232" r="10" fill="#031008"/>
-    <circle cx="299" cy="223" r="6" fill="#ccffdd" opacity="0.95"/>
-    <!-- scan line sweeping the eye -->
-    <rect x="256" y="230" width="106" height="3" fill="#ccffdd" opacity="0.6">
-      <animate attributeName="y" values="196;272;196" dur="3.2s" repeatCount="indefinite"/>
-    </rect>
+    <circle cx="312" cy="232" r="11" fill="#031008"/>
+    <circle cx="303" cy="222" r="6" fill="#ccffdd" opacity="0.95"/>
   </g>
 </svg>

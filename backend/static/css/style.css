@@ -120,10 +120,16 @@ body::after {
 /* ---------- layout ---------- */
 
 .shell {
+  width: 100%;
   max-width: 1080px;
   margin: 0 auto;
   padding: 30px 22px 50px;
 }
+
+/* The app window can be narrower than the desktop-browser assumption, so the
+   activity log scrolls inside its own panel rather than pushing the page
+   sideways. */
+html, body { overflow-x: hidden; }
 
 /* ---------- header ---------- */
 
@@ -993,4 +999,192 @@ table.history td:first-child { color: var(--text); }
   letter-spacing: 0.1em;
   color: var(--text-dim);
   text-transform: uppercase;
+}
+
+/* ---------- activity log pagination ---------- */
+
+.pager {
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.pager-count { font-size: 11.5px; color: var(--text-dim); }
+.pager-count b { color: var(--text-mid); font-weight: 600; }
+
+.pager-controls { display: flex; align-items: center; gap: 6px; }
+
+.page-btn {
+  display: inline-flex; align-items: center;
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+
+.page-btn .icon { width: 13px; height: 13px; margin: 0; }
+
+/* Arrow sits after the label on Next, before it on Prev. */
+.page-btn .icon:first-child { margin-right: 3px; }
+.page-btn .icon:last-child  { margin-left: 3px; }
+
+.page-btn:disabled { opacity: .35; cursor: default; }
+.page-btn:disabled:hover { background: transparent; border-color: var(--line); color: var(--text-dim); }
+
+.pager-page {
+  padding: 0 8px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .pager { justify-content: center; }
+  .pager-controls { flex-wrap: wrap; justify-content: center; }
+}
+
+/* ---------- save-folder prompt ---------- */
+
+.folder-modal {
+  padding: 28px 26px 20px;
+  border: 1px solid var(--line-strong);
+  border-top: 2px solid var(--green);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  text-align: center;
+  box-shadow: var(--shadow-modal);
+}
+
+.fm-icon .icon { width: 42px; height: 42px; margin: 0; color: var(--green); }
+
+.fm-title {
+  margin: 12px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fm-sub {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.fm-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.fm-path {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.fm-error {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border: 1px solid var(--edge-red);
+  border-radius: 8px;
+  background: var(--tint-red-sm);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
+  color: var(--text-mid);
+}
+
+/* "Saved to <folder>" line in the result modal. */
+.sm-saved {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--text-mid);
+}
+
+.sm-saved .icon { width: 15px; height: 15px; margin: 0; color: var(--green); }
+.sm-saved b { color: var(--text); font-weight: 600; }
+
+@media (max-width: 560px) {
+  .fm-row { flex-direction: column; }
+  .folder-modal { padding: 20px 16px; }
+}
+
+/* ---------- update available ---------- */
+
+.update-modal {
+  padding: 28px 26px 20px;
+  border: 1px solid var(--line-strong);
+  border-top: 2px solid var(--green);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  text-align: center;
+  box-shadow: var(--shadow-modal);
+}
+
+.um-icon .icon { width: 40px; height: 40px; margin: 0; color: var(--green); }
+
+.um-title { margin: 12px 0 0; font-size: 17px; font-weight: 600; color: var(--text); }
+.um-sub   { margin: 8px 0 0; font-size: 12.5px; color: var(--text-dim); }
+
+.um-versions {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.um-ver {
+  flex: 1;
+  max-width: 170px;
+  padding: 11px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--well);
+}
+
+.um-ver .k { display: block; margin-bottom: 4px; }
+
+.um-ver .v {
+  display: block;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.um-ver .v.ok { color: var(--green); }
+
+.um-arrow { width: 18px; height: 18px; margin: 0; color: var(--text-dim); flex: none; }
+
+.um-notes {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--well);
+  font-size: 12px;
+  line-height: 1.65;
+  text-align: left;
+  color: var(--text-mid);
+}
+
+.um-progress { margin-top: 18px; }
+.um-status { margin: 9px 0 0; font-size: 12px; color: var(--text-mid); }
+
+.um-verified {
+  margin: 16px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 560px) {
+  .um-versions { flex-direction: column; gap: 8px; }
+  .um-arrow { transform: rotate(90deg); }
+  .update-modal { padding: 20px 16px; }
 }

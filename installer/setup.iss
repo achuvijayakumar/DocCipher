@@ -61,6 +61,16 @@ Source: "EULA.txt";              DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\logo.svg";    DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\logo.png";    DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\icon.ico";    DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE";            DestDir: "{app}"; Flags: ignoreversion
+; update.bat reads version.txt to decide whether a newer release exists, so the
+; two must be installed together or the updater cannot run.
+Source: "..\update.bat";         DestDir: "{app}"; Flags: ignoreversion
+Source: "..\version.txt";        DestDir: "{app}"; Flags: ignoreversion
+; Optional: drop a qpdf build into tools\qpdf\ before compiling and it is
+; bundled and preferred for PDFs. PyMuPDF is compiled into the executable and
+; handles PDFs on its own, so this is not required.
+Source: "..\tools\qpdf\*";       DestDir: "{app}\tools\qpdf"; \
+    Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#AppName}";             Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\icon.ico"

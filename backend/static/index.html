@@ -32,6 +32,22 @@
       <p class="tagline">Document Security Analysis Tool</p>
     </div>
     <span class="hero-version">v1.0.0</span>
+    <button class="theme-toggle" id="settings-btn" type="button"
+            title="Settings" aria-label="Settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06
+                 a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09
+                 A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83
+                 l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09
+                 A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83
+                 l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09
+                 a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83
+                 l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09
+                 a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
     <button class="theme-toggle" id="theme-toggle" type="button"
             title="Switch theme" aria-label="Switch colour theme">
       <svg class="icon icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -80,23 +96,23 @@
       </h2>
       <div class="panel-tools">
         <input type="search" id="history-search" class="input" placeholder="Search files..."
-               hx-get="/history" hx-target="#history-table" hx-trigger="input changed delay:300ms"
+               hx-get="/history?page=1" hx-target="#history-table" hx-trigger="input changed delay:300ms"
                name="search" hx-include="#history-status,#history-format">
         <select id="history-format" class="input" name="file_format"
-                hx-get="/history" hx-target="#history-table" hx-trigger="change"
+                hx-get="/history?page=1" hx-target="#history-table" hx-trigger="change"
                 hx-include="#history-search,#history-status">
           <option value="all">All formats</option>
           <option value="docx">DOCX</option>
           <option value="pdf">PDF</option>
         </select>
         <select id="history-status" class="input" name="status"
-                hx-get="/history" hx-target="#history-table" hx-trigger="change"
+                hx-get="/history?page=1" hx-target="#history-table" hx-trigger="change"
                 hx-include="#history-search,#history-format">
           <option value="all">All</option>
           <option value="success">Completed</option>
           <option value="failed">Failed</option>
         </select>
-        <button class="btn ghost" hx-get="/history" hx-target="#history-table"
+        <button class="btn ghost" hx-get="/history?page=1" hx-target="#history-table"
                 hx-include="#history-search,#history-status,#history-format">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -183,6 +199,95 @@
   <div class="modal-backdrop" onclick="closeSuccess()"></div>
   <div class="modal-body">
     <div class="success-modal" id="success-body"></div>
+  </div>
+</div>
+
+<!-- Save-folder prompt / settings -->
+<div class="modal hidden" id="folder-modal" role="dialog" aria-modal="true"
+     aria-labelledby="folder-modal-title">
+  <div class="modal-backdrop" id="folder-backdrop"></div>
+  <div class="modal-body">
+    <div class="folder-modal">
+      <div class="fm-icon">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+        </svg>
+      </div>
+      <h2 class="fm-title" id="folder-modal-title">Where should unlocked files be saved?</h2>
+      <p class="fm-sub" id="fm-sub">
+        Unlocked copies are written here. Your original files are never changed.
+      </p>
+
+      <div class="fm-row">
+        <input type="text" class="input fm-path" id="fm-path" spellcheck="false"
+               aria-label="Save folder">
+        <button class="btn" id="fm-browse" type="button">Browse…</button>
+      </div>
+
+      <p class="fm-error hidden" id="fm-error"></p>
+
+      <div class="actions center">
+        <button class="btn primary" id="fm-save" type="button">USE THIS FOLDER</button>
+        <button class="btn hidden" id="fm-cancel" type="button">CANCEL</button>
+      </div>
+
+      <div class="sm-foot">
+        DocCipher Breaker v1.0.0 &nbsp;|&nbsp; Created by Achu Vijayakumar
+        &nbsp;|&nbsp; <span class="edu">FOR EDUCATIONAL PURPOSES ONLY</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Update available -->
+<div class="modal hidden" id="update-modal" role="dialog" aria-modal="true"
+     aria-labelledby="update-modal-title">
+  <div class="modal-backdrop" id="update-backdrop"></div>
+  <div class="modal-body">
+    <div class="update-modal">
+      <div class="um-icon">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/>
+        </svg>
+      </div>
+
+      <h2 class="um-title" id="update-modal-title">Update available</h2>
+      <p class="um-sub" id="um-sub"></p>
+
+      <div class="um-versions">
+        <div class="um-ver"><span class="k">INSTALLED</span><span class="v" id="um-current">—</span></div>
+        <svg class="icon um-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+        </svg>
+        <div class="um-ver"><span class="k">LATEST</span><span class="v ok" id="um-latest">—</span></div>
+      </div>
+
+      <div class="um-notes hidden" id="um-notes"></div>
+
+      <div class="um-progress hidden" id="um-progress">
+        <div class="progress-bar"><div class="fill" id="um-fill"></div></div>
+        <p class="um-status" id="um-status">Downloading…</p>
+      </div>
+
+      <p class="fm-error hidden" id="um-error"></p>
+
+      <div class="actions center" id="um-actions">
+        <button class="btn primary" id="um-install" type="button">DOWNLOAD &amp; INSTALL</button>
+        <button class="btn" id="um-later" type="button">LATER</button>
+      </div>
+
+      <p class="um-verified">
+        Updates are verified against a SHA-256 checksum before installing.
+      </p>
+
+      <div class="sm-foot">
+        DocCipher Breaker v1.0.0 &nbsp;|&nbsp; Created by Achu Vijayakumar
+        &nbsp;|&nbsp; <span class="edu">FOR EDUCATIONAL PURPOSES ONLY</span>
+      </div>
+    </div>
   </div>
 </div>
 

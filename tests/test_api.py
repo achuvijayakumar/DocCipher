@@ -497,3 +497,343 @@ def test_drop_zone_mentions_both_formats(client):
     html = client.get("/app").text
     assert ".docx or .pdf" in html
     assert 'accept=".docx,.pdf"' in html
+
+
+# ---------------------------------------------------- activity log paging
+
+
+def _body_rows(html: str) -> int:
+    """Count data rows only -- the header row is also a <tr>."""
+    body = html.split("<tbody>")[1].split("</tbody>")[0]
+    return body.count("<tr>")
+
+
+def _seed(client, locked_bytes, n):
+    for i in range(n):
+        client.post("/upload", files={"file": (f"file{i:02d}.docx", locked_bytes)})
+
+
+def test_history_paginates_at_ten_rows(client, locked_bytes):
+    _seed(client, locked_bytes, 25)
+    html = client.get("/history").text
+    assert _body_rows(html) == 10
+    assert "Page 1 of 3" in html
+    assert "of <b>25</b>" in html
+
+
+def test_history_second_page_has_different_rows(client, locked_bytes):
+    _seed(client, locked_bytes, 25)
+    page1 = client.get("/history", params={"page": 1}).text
+    page2 = client.get("/history", params={"page": 2}).text
+    # Newest first: page 1 starts at file24, page 2 at file14.
+    assert "file24.docx" in page1 and "file24.docx" not in page2
+    assert "file14.docx" in page2 and "file14.docx" not in page1
+    assert "Page 2 of 3" in page2
+
+
+def test_last_page_may_be_partial(client, locked_bytes):
+    _seed(client, locked_bytes, 25)
+    html = client.get("/history", params={"page": 3}).text
+    assert _body_rows(html) == 5
+    assert "Showing <b>21\u201325</b>" in html
+
+
+def test_page_beyond_the_end_clamps_to_the_last_page(client, locked_bytes):
+    _seed(client, locked_bytes, 12)
+    html = client.get("/history", params={"page": 99}).text
+    assert "Page 2 of 2" in html
+    assert _body_rows(html) == 2
+
+
+def test_first_and_prev_are_disabled_on_page_one(client, locked_bytes):
+    _seed(client, locked_bytes, 25)
+    html = client.get("/history", params={"page": 1}).text
+    assert html.count("disabled") == 2          # First + Prev
+    html3 = client.get("/history", params={"page": 3}).text
+    assert html3.count("disabled") == 2         # Next + Last
+
+
+def test_single_page_disables_every_control(client, locked_bytes):
+    _seed(client, locked_bytes, 4)
+    html = client.get("/history").text
+    assert "Page 1 of 1" in html
+    assert html.count("disabled") == 4
+
+
+def test_pagination_hidden_when_there_is_no_activity(client):
+    html = client.get("/history").text
+    assert "pager" not in html
+    assert "No activity yet" in html
+
+
+def test_pagination_respects_the_status_filter(client, locked_bytes):
+    _seed(client, locked_bytes, 12)
+    for i in range(3):
+        client.post("/upload", files={"file": (f"bad{i}.docx", b"junk")})
+
+    html = client.get("/history", params={"status": "failed"}).text
+    assert "of <b>3</b>" in html
+    assert "Page 1 of 1" in html
+
+
+def test_pagination_respects_the_format_filter(client, locked_bytes, restricted_pdf_bytes):
+    _seed(client, locked_bytes, 12)
+    client.post("/upload", files={"file": ("only.pdf", restricted_pdf_bytes)})
+
+    html = client.get("/history", params={"file_format": "pdf"}).text
+    assert "of <b>1</b>" in html
+    assert "only.pdf" in html
+
+
+def test_page_links_carry_the_filters(client, locked_bytes):
+    """Paging must not silently drop the active search or filters."""
+    _seed(client, locked_bytes, 25)
+    html = client.get("/history", params={"page": 1}).text
+    assert 'hx-include="#history-search,#history-status,#history-format"' in html
+
+
+def test_per_page_is_bounded(client, locked_bytes):
+    _seed(client, locked_bytes, 12)
+    assert client.get("/history", params={"per_page": 1}).status_code == 422
+    assert client.get("/history", params={"per_page": 500}).status_code == 422
+    assert client.get("/history", params={"page": 0}).status_code == 422
+
+
+def test_api_history_still_paginates_by_offset(client, locked_bytes):
+    _seed(client, locked_bytes, 25)
+    first = client.get("/api/history", params={"limit": 10, "offset": 0}).json()
+    second = client.get("/api/history", params={"limit": 10, "offset": 10}).json()
+    assert len(first) == len(second) == 10
+    assert {r["id"] for r in first}.isdisjoint({r["id"] for r in second})
+
+
+# ------------------------------------------------------ theme persistence
+
+
+def test_theme_defaults_to_light(client):
+    assert client.get("/api/theme").json()["theme"] == "light"
+    assert 'data-theme="light"' in client.get("/app").text
+
+
+def test_theme_choice_is_stored_server_side(client):
+    client.post("/api/theme", data={"theme": "dark"})
+    assert client.get("/api/theme").json()["theme"] == "dark"
+
+    from backend import database
+    assert database.get_setting("theme") == "dark"
+
+
+def test_stored_theme_is_stamped_into_the_html(client):
+    """Server-side rendering means no flash of the wrong palette on startup."""
+    client.post("/api/theme", data={"theme": "dark"})
+    for route in ("/app", "/splash"):
+        html = client.get(route).text
+        # Check the <html> tag itself -- the string also appears in CSS selectors.
+        opening = html.split(">", 1)[0] if html.startswith("<!DOCTYPE") else html
+        opening = html[: html.index(">", html.index("<html")) + 1]
+        assert 'data-theme="dark"' in opening
+        assert 'data-theme="light"' not in opening
+
+
+def test_theme_survives_a_new_server_instance(client, tmp_path, monkeypatch):
+    """A fresh process must serve the theme the user last chose."""
+    client.post("/api/theme", data={"theme": "dark"})
+
+    # Re-import the app against the same data directory, as a restart would.
+    import sys
+
+    from fastapi.testclient import TestClient
+
+    for mod in list(sys.modules):
+        if mod.startswith("backend"):
+            del sys.modules[mod]
+    from backend import database, main
+
+    database.init(main.DB_PATH)
+    with TestClient(main.app) as fresh:
+        assert fresh.get("/api/theme").json()["theme"] == "dark"
+        assert 'data-theme="dark"' in fresh.get("/app").text
+
+
+def test_theme_round_trips_back_to_light(client):
+    client.post("/api/theme", data={"theme": "dark"})
+    client.post("/api/theme", data={"theme": "light"})
+    assert client.get("/api/theme").json()["theme"] == "light"
+    assert 'data-theme="light"' in client.get("/app").text
+
+
+def test_theme_rejects_unknown_values(client):
+    assert client.post("/api/theme", data={"theme": "neon"}).status_code == 400
+    # The stored value must be unchanged by a rejected request.
+    assert client.get("/api/theme").json()["theme"] == "light"
+
+
+# ------------------------------------------------------------ save folder
+
+
+def test_save_dir_starts_unconfigured(client):
+    body = client.get("/api/save-dir").json()
+    assert body["configured"] is False
+    assert body["suggested"].endswith("DocCipher Breaker")
+
+
+def test_setting_save_dir_persists(client, tmp_path):
+    target = tmp_path / "MyUnlocked"
+    body = client.post("/api/save-dir", data={"path": str(target)}).json()
+    assert body["configured"] is True
+    assert Path(body["path"]) == target
+    assert target.is_dir()
+
+    again = client.get("/api/save-dir").json()
+    assert Path(again["path"]) == target
+    assert again["configured"] is True
+
+
+def test_unlocked_files_land_in_the_chosen_folder(client, locked_bytes, tmp_path):
+    target = tmp_path / "Chosen"
+    client.post("/api/save-dir", data={"path": str(target)})
+
+    body = client.post("/upload?format=json", files={"file": ("x.docx", locked_bytes)}).json()
+    assert body["status"] == "success"
+    assert Path(body["output_path"]).parent == target
+    assert (target / "x_unlocked.docx").exists()
+
+
+def test_pdf_also_uses_the_chosen_folder(client, restricted_pdf_bytes, tmp_path):
+    target = tmp_path / "Chosen2"
+    client.post("/api/save-dir", data={"path": str(target)})
+    body = client.post("/upload?format=json", files={"file": ("y.pdf", restricted_pdf_bytes)}).json()
+    assert Path(body["output_path"]).parent == target
+
+
+def test_save_dir_rejects_a_relative_path(client):
+    res = client.post("/api/save-dir", data={"path": "not/absolute"})
+    assert res.status_code == 400
+    assert "full folder path" in res.json()["detail"]
+
+
+def test_save_dir_rejects_an_unwritable_location(client):
+    """A path that cannot be created must be refused, not silently accepted."""
+    res = client.post("/api/save-dir", data={"path": "Z:\nope\nowhere"})
+    assert res.status_code == 400
+    assert client.get("/api/save-dir").json()["configured"] is False
+
+
+def test_falls_back_when_the_chosen_folder_disappears(client, locked_bytes, tmp_path):
+    """A deleted save folder must not break unlocking."""
+    import shutil
+
+    target = tmp_path / "Vanishing"
+    client.post("/api/save-dir", data={"path": str(target)})
+    shutil.rmtree(target)
+
+    body = client.post("/upload?format=json", files={"file": ("z.docx", locked_bytes)}).json()
+    assert body["status"] == "success"
+    # Recreated on demand rather than erroring.
+    assert Path(body["output_path"]).parent == target
+
+
+def test_changing_the_folder_takes_effect_immediately(client, locked_bytes, tmp_path):
+    first, second = tmp_path / "First", tmp_path / "Second"
+
+    client.post("/api/save-dir", data={"path": str(first)})
+    a = client.post("/upload?format=json", files={"file": ("a.docx", locked_bytes)}).json()
+    assert Path(a["output_path"]).parent == first
+
+    client.post("/api/save-dir", data={"path": str(second)})
+    b = client.post("/upload?format=json", files={"file": ("b.docx", locked_bytes)}).json()
+    assert Path(b["output_path"]).parent == second
+
+
+def test_open_endpoints_404_on_unknown_entries(client):
+    assert client.post("/reveal/9999").status_code == 404
+    assert client.post("/open/9999").status_code == 404
+
+
+# ---------------------------------------------------------- in-app updates
+
+
+def test_update_status_endpoint_exists(client):
+    body = client.get("/api/update").json()
+    assert "checked" in body and "available" in body
+
+
+def test_unconfigured_manifest_reports_nothing_available(client, tmp_path, monkeypatch):
+    """A build not published anywhere must never nag about updates."""
+    from backend import main, updater
+
+    manifest = tmp_path / "version.txt"
+    manifest.write_text(
+        "version=1.0.0\nupdate_url=https://example.invalid/x/version.txt\n", encoding="utf-8"
+    )
+    result = updater.check("1.0.0", manifest)
+    assert result["checked"] is True
+    assert result["available"] is False
+    assert result["error"] is None       # silent, not an error state
+
+
+def test_unreachable_host_does_not_error_the_app(tmp_path):
+    from backend import updater
+
+    manifest = tmp_path / "version.txt"
+    manifest.write_text(
+        "version=1.0.0\nupdate_url=https://127.0.0.1:9/version.txt\n", encoding="utf-8"
+    )
+    result = updater.check("1.0.0", manifest)
+    assert result["checked"] is True
+    assert result["available"] is False   # degrades quietly when offline
+
+
+def test_plain_http_update_url_is_refused(tmp_path):
+    """HTTP can be rewritten in transit, which would defeat the checksum."""
+    from backend import updater
+
+    manifest = tmp_path / "version.txt"
+    manifest.write_text(
+        "version=1.0.0\nupdate_url=http://example.com/version.txt\n", encoding="utf-8"
+    )
+    result = updater.check("1.0.0", manifest)
+    assert result["available"] is False
+    assert "not HTTPS" in result["error"]
+
+
+def test_version_comparison_is_numeric():
+    from backend.updater import is_newer
+
+    assert is_newer("1.0.1", "1.0.0")
+    assert is_newer("1.1.0", "1.0.9")
+    assert is_newer("1.0.10", "1.0.9")     # not a string comparison
+    assert not is_newer("1.0.0", "1.0.0")
+    assert not is_newer("0.9.9", "1.0.0")
+    assert not is_newer("", "1.0.0")
+
+
+def test_manifest_parsing_ignores_comments_and_blanks(tmp_path):
+    from backend.updater import read_local_manifest
+
+    p = tmp_path / "version.txt"
+    p.write_text(
+        "# a comment\n\nversion=2.0.0\n  notes = hello world \nbroken-line\n",
+        encoding="utf-8",
+    )
+    data = read_local_manifest(p)
+    assert data["version"] == "2.0.0"
+    assert data["notes"] == "hello world"
+    assert "broken-line" not in data
+
+
+def test_apply_without_a_download_is_refused(client):
+    """Nothing may be installed unless a verified file was staged first."""
+    from backend import updater
+
+    updater.state.update(staged_path=None, ready=False)
+    result = updater.apply_and_restart(Path("C:/nonexistent/app.exe"))
+    assert result["started"] is False
+    assert "No verified update" in result["error"]
+
+
+def test_apply_endpoint_rejects_source_checkouts(client):
+    """Running from source there is no single .exe to replace."""
+    res = client.post("/api/update/apply")
+    assert res.status_code == 400
+    assert "installed application" in res.json()["detail"]

@@ -110,7 +110,9 @@
     bolt:     '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     refresh:  '<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 4v4h-4"/>' +
               '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 20v-4h4"/>',
-    check:    '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'
+    check:    '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    file:     '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>' +
+              '<path d="M14 3v5h5"/>'
   };
 
   let busy = false;
@@ -238,6 +240,8 @@
           cell('SIZE', humanSize(data.size_after)) +
           cell('TIME', (data.duration || 0) + 's') +
         '</div>' +
+        '<div class="sm-saved">' + SVG(ICONS.check) + 'Saved to <b>' +
+          escapeHtml(folderOf(data.output_path)) + '</b></div>' +
         '<div class="sm-path" title="' + escapeHtml(data.output_path || '') + '">' +
           escapeHtml(data.output_path || '') +
         '</div>'
@@ -251,10 +255,10 @@
 
     const actions = ok
       ? '<div class="actions center">' +
-          '<a class="btn primary" href="/download/' + encodeURIComponent(data.download_token) +
-            '" download>' + SVG(ICONS.download) + ' DOWNLOAD</a>' +
-          '<button class="btn" onclick="revealFile(' + Number(data.history_id) + ')">' +
-            SVG(ICONS.folder) + ' OPEN FILE</button>' +
+          '<button class="btn primary" onclick="revealFile(' + Number(data.history_id) + ')">' +
+            SVG(ICONS.folder) + ' OPEN FOLDER</button>' +
+          '<button class="btn" onclick="openResult(' + Number(data.history_id) + ')">' +
+            SVG(ICONS.file) + ' OPEN FILE</button>' +
           '<button class="btn" onclick="anotherOne()">' + SVG(ICONS.bolt) + ' NEW</button>' +
         '</div>'
       : '<div class="actions center">' +
@@ -454,7 +458,8 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (!aboutModal.classList.contains('hidden')) closeAbout();
+    if (!folderModal.classList.contains('hidden')) closeFolderModal();
+    else if (!aboutModal.classList.contains('hidden')) closeAbout();
     else if (!successModal.classList.contains('hidden')) closeSuccess();
     else if (!crackModal.classList.contains('hidden')) cmCancel.click();
   });
@@ -467,16 +472,287 @@
     } catch (e) { /* non-fatal */ }
   };
 
+  window.openResult = async function (historyId) {
+    try {
+      await fetch('/open/' + historyId, { method: 'POST' });
+    } catch (e) { /* non-fatal */ }
+  };
+
+  // "C:\Users\Me\Documents\DocCipher\a.docx" -> "Documents\DocCipher"
+  function folderOf(fullPath) {
+    if (!fullPath) return '';
+    const parts = String(fullPath).split(/[\\/]/);
+    parts.pop();                       // drop the filename
+    const sep = '\\';
+    return parts.slice(-2).join(sep) || parts.join(sep);
+  }
+
   window.refreshSidePanels = function () {
     if (!window.htmx) return;
     const table = document.getElementById('history-table');
     const stats = document.getElementById('stats');
-    if (table) htmx.ajax('GET', '/history', { target: '#history-table', source: table });
+    if (table) htmx.ajax('GET', '/history?page=1', { target: '#history-table', source: table });
     if (stats) htmx.ajax('GET', '/stats', { target: '#stats' });
   };
 
   // Kept for any server-rendered fragment that still calls it.
   window.resetZone = window.anotherOne;
+
+  /* ---------------- updates ---------------- */
+
+  /* The server checks for a newer build in the background at startup. This
+     polls that result briefly and shows a modal if one is waiting.
+
+     Nothing here blocks the app: with no internet the check simply reports
+     nothing available, and the modal never appears. */
+  const updateModal  = document.getElementById('update-modal');
+  const umCurrent    = document.getElementById('um-current');
+  const umLatest     = document.getElementById('um-latest');
+  const umSub        = document.getElementById('um-sub');
+  const umNotes      = document.getElementById('um-notes');
+  const umProgress   = document.getElementById('um-progress');
+  const umFill       = document.getElementById('um-fill');
+  const umStatus     = document.getElementById('um-status');
+  const umError      = document.getElementById('um-error');
+  const umActions    = document.getElementById('um-actions');
+  const umInstall    = document.getElementById('um-install');
+  const umLater      = document.getElementById('um-later');
+  const umBackdrop   = document.getElementById('update-backdrop');
+
+  const DISMISSED_KEY = 'doccipher-update-dismissed';
+
+  async function pollForUpdate(attempt) {
+    attempt = attempt || 0;
+    if (attempt > 12) return;                 // ~12s, then give up quietly
+
+    let data;
+    try {
+      data = await (await fetch('/api/update')).json();
+    } catch (e) { return; }
+
+    if (!data.checked) {
+      setTimeout(() => pollForUpdate(attempt + 1), 1000);
+      return;
+    }
+    if (!data.available) return;
+
+    // Respect "Later" until a newer version than the one dismissed appears.
+    let dismissed = null;
+    try { dismissed = localStorage.getItem(DISMISSED_KEY); } catch (e) { /* ignore */ }
+    if (dismissed && dismissed === data.latest) return;
+
+    showUpdate(data);
+  }
+
+  function showUpdate(data) {
+    umCurrent.textContent = data.current || '—';
+    umLatest.textContent = data.latest || '—';
+    umSub.textContent =
+      'A newer version of DocCipher Breaker is available.';
+
+    if (data.notes) {
+      umNotes.textContent = data.notes;
+      umNotes.classList.remove('hidden');
+    } else {
+      umNotes.classList.add('hidden');
+    }
+
+    umError.classList.add('hidden');
+    umProgress.classList.add('hidden');
+    umActions.classList.remove('hidden');
+    umInstall.disabled = false;
+    umInstall.textContent = 'DOWNLOAD & INSTALL';
+
+    updateModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeUpdate() {
+    updateModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  umLater.addEventListener('click', () => {
+    try {
+      localStorage.setItem(DISMISSED_KEY, umLatest.textContent);
+    } catch (e) { /* ignore */ }
+    closeUpdate();
+  });
+
+  umBackdrop.addEventListener('click', () => {
+    // Only dismissable while nothing is being installed.
+    if (!umProgress.classList.contains('hidden')) return;
+    closeUpdate();
+  });
+
+  umInstall.addEventListener('click', async () => {
+    umInstall.disabled = true;
+    umError.classList.add('hidden');
+    umProgress.classList.remove('hidden');
+    umFill.style.width = '35%';
+    umStatus.textContent = 'Downloading…';
+
+    let result;
+    try {
+      result = await (await fetch('/api/update/download', { method: 'POST' })).json();
+    } catch (e) {
+      showUmError('The download failed. Check your connection and try again.');
+      return;
+    }
+
+    if (result.error || !result.ready) {
+      showUmError(result.error || 'The update could not be verified.');
+      return;
+    }
+
+    umFill.style.width = '75%';
+    umStatus.textContent = 'Checksum verified. Installing…';
+
+    try {
+      const res = await fetch('/api/update/apply', { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showUmError(err.detail || 'The update could not be installed.');
+        return;
+      }
+    } catch (e) {
+      showUmError('The update could not be installed.');
+      return;
+    }
+
+    umFill.style.width = '100%';
+    umStatus.textContent = 'Restarting…';
+    umActions.classList.add('hidden');
+  });
+
+  function showUmError(message) {
+    umError.textContent = message;
+    umError.classList.remove('hidden');
+    umProgress.classList.add('hidden');
+    umInstall.disabled = false;
+    umInstall.textContent = 'TRY AGAIN';
+  }
+
+  pollForUpdate();
+
+  /* ---------------- save folder ---------------- */
+
+  /* Unlocked files are written straight to a folder the user picks once.
+
+     The first run asks; every run after that saves silently and the result
+     modal offers OPEN FOLDER instead of a download prompt. The setting lives
+     server-side in SQLite, so it survives a WebView2 storage reset. */
+  const folderModal = document.getElementById('folder-modal');
+  const fmPath      = document.getElementById('fm-path');
+  const fmBrowse    = document.getElementById('fm-browse');
+  const fmSave      = document.getElementById('fm-save');
+  const fmCancel    = document.getElementById('fm-cancel');
+  const fmError     = document.getElementById('fm-error');
+  const fmTitle     = document.getElementById('folder-modal-title');
+  const fmSub       = document.getElementById('fm-sub');
+  const settingsBtn = document.getElementById('settings-btn');
+  const fmBackdrop  = document.getElementById('folder-backdrop');
+
+  let saveDir = null;
+  let firstRun = false;
+
+  async function loadSaveDir() {
+    try {
+      const res = await fetch('/api/save-dir');
+      const data = await res.json();
+      saveDir = data.path;
+      firstRun = !data.configured;
+      if (firstRun) openFolderModal(data.suggested, true);
+    } catch (e) { /* offline-only app; nothing to retry against */ }
+  }
+
+  function openFolderModal(path, isFirstRun) {
+    firstRun = !!isFirstRun;
+    fmPath.value = path || saveDir || '';
+    fmError.classList.add('hidden');
+
+    fmTitle.textContent = firstRun
+      ? 'Where should unlocked files be saved?'
+      : 'Save folder';
+    fmSub.textContent = firstRun
+      ? 'Unlocked copies are written here. Your original files are never changed.'
+      : 'Unlocked copies are written here. Existing files stay where they are.';
+
+    // The first-run prompt has no escape hatch -- a folder must be chosen.
+    fmCancel.classList.toggle('hidden', firstRun);
+    fmSave.textContent = firstRun ? 'USE THIS FOLDER' : 'SAVE';
+
+    folderModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    fmPath.focus();
+    fmPath.select();
+  }
+
+  function closeFolderModal() {
+    if (firstRun) return;            // must choose before continuing
+    folderModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  fmBrowse.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/browse-folder', { method: 'POST' });
+      const data = await res.json();
+      if (data.available && data.path) {
+        fmPath.value = data.path;
+        fmError.classList.add('hidden');
+      } else if (!data.available) {
+        showFmError('Folder picker is unavailable here. Type the full path instead.');
+      }
+    } catch (e) {
+      showFmError('Could not open the folder picker. Type the full path instead.');
+    }
+  });
+
+  fmSave.addEventListener('click', async () => {
+    const value = fmPath.value.trim();
+    if (!value) { showFmError('Please choose a folder.'); return; }
+
+    fmSave.disabled = true;
+    try {
+      const body = new FormData();
+      body.append('path', value);
+      const res = await fetch('/api/save-dir', { method: 'POST', body });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showFmError(err.detail || 'That folder cannot be used.');
+        return;
+      }
+      const data = await res.json();
+      saveDir = data.path;
+      firstRun = false;
+      folderModal.classList.add('hidden');
+      document.body.style.overflow = '';
+    } finally {
+      fmSave.disabled = false;
+    }
+  });
+
+  function showFmError(message) {
+    fmError.textContent = message;
+    fmError.classList.remove('hidden');
+  }
+
+  fmCancel.addEventListener('click', closeFolderModal);
+  fmBackdrop.addEventListener('click', closeFolderModal);
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => openFolderModal(saveDir, false));
+  }
+
+  fmPath.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); fmSave.click(); }
+  });
+
+  window.openSaveFolder = function () {
+    fetch('/api/reveal-save-dir', { method: 'POST' }).catch(() => {});
+  };
+
+  loadSaveDir();
 
   /* ---------------- theme ---------------- */
 
@@ -489,18 +765,30 @@
 
     const root = document.documentElement;
 
-    function apply(theme) {
+    function apply(theme, persist) {
       root.setAttribute('data-theme', theme);
       btn.setAttribute('aria-label',
         theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+
+      // localStorage is the fast path for the next page load in this session.
       try { localStorage.setItem(KEY, theme); } catch (e) { /* private mode */ }
+
+      // The server is the durable record: it survives a WebView2 profile reset
+      // and is what stamps the correct palette into the next page's HTML.
+      if (persist) {
+        const body = new FormData();
+        body.append('theme', theme);
+        fetch('/api/theme', { method: 'POST', body }).catch(() => { /* non-fatal */ });
+      }
     }
 
     btn.addEventListener('click', () => {
-      apply(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+      apply(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark', true);
     });
 
-    apply(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    // The server already stamped data-theme onto <html>; sync the button label
+    // without posting the value straight back.
+    apply(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light', false);
   })();
 
   /* ---------------- watermark ---------------- */

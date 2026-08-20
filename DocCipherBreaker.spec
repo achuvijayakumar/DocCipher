@@ -26,6 +26,14 @@ a = Analysis(
         # PyMuPDF ships a compiled extension PyInstaller cannot always see.
         "fitz",
         "pymupdf",
+        # pywebview loads its GUI backend dynamically, so PyInstaller's import
+        # scan never reaches it. edgechromium is the WebView2 backend used on
+        # Windows 10/11; clr_loader and pythonnet are its .NET bridge.
+        "webview",
+        "webview.platforms.edgechromium",
+        "webview.platforms.winforms",
+        "clr_loader",
+        "pythonnet",
     ],
     hookspath=[],
     runtime_hooks=[],
