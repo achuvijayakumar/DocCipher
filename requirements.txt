@@ -4,3 +4,4 @@ python-multipart==0.0.20
 pydantic==2.10.4
 PyMuPDF==1.25.1
 pywebview==6.2.1        # native desktop window (WebView2 on Windows)
+openpyxl==3.1.5         # test fixtures only

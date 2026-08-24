@@ -37,7 +37,7 @@ from .models import (
 )
 
 APP_NAME = "DocCipher Breaker"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 AUTHOR = "Achu Vijayakumar"
 YEAR = "2026"
 EDU_NOTICE = "FOR EDUCATIONAL PURPOSES ONLY"
@@ -191,7 +191,7 @@ def _safe_local_path(raw: str) -> Path:
         raise HTTPException(400, f"Not a file: {path}")
     if dispatch.detect_format(str(path)) is None:
         raise HTTPException(
-            400, f"Unsupported file type: {path.name}. Only .docx and .pdf are supported."
+            400, f"Unsupported file type: {path.name}. Only .docx, .pdf and .xlsx are supported."
         )
     return path
 
@@ -414,7 +414,7 @@ async def upload(
 
     name = safe_filename(file.filename)
     if dispatch.detect_format(name) is None:
-        return fail("Only .docx and .pdf files are accepted.")
+        return fail("Only .docx, .pdf and .xlsx files are accepted.")
 
     staged = unique_path(OUTPUT_DIR / f".incoming_{name}")
     written = 0
@@ -703,7 +703,7 @@ def _render_history(rows: list) -> str:
     renders identically on every machine.
     """
     if not rows:
-        return '<div class="empty">No activity yet. Drop a .docx or .pdf file above to get started.</div>'
+        return '<div class="empty">No activity yet. Drop a document above to get started.</div>'
 
     body = []
     for r in rows:
@@ -858,7 +858,7 @@ def _cli_crack(paths: list[str]) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="DocCipherBreaker", description=APP_NAME)
-    parser.add_argument("files", nargs="*", help=".docx or .pdf files to unlock headlessly")
+    parser.add_argument("files", nargs="*", help=".docx, .pdf or .xlsx files to unlock headlessly")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--no-browser", action="store_true")

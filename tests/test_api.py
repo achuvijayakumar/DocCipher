@@ -456,7 +456,7 @@ def test_password_protected_pdf_gets_a_friendly_message(client, password_pdf_byt
 def test_upload_rejects_unsupported_extension(client):
     body = client.post("/upload?format=json", files={"file": ("a.txt", b"hello")}).json()
     assert body["status"] == "failed"
-    assert ".docx and .pdf" in body["error"]
+    assert ".docx, .pdf and .xlsx" in body["error"]
 
 
 def test_history_records_the_format(client, restricted_pdf_bytes, locked_bytes):
@@ -516,10 +516,11 @@ def test_api_batch_mixes_formats(client, tmp_path):
     assert {r["format"] for r in body["results"]} == {"docx", "pdf"}
 
 
-def test_drop_zone_mentions_both_formats(client):
+def test_drop_zone_mentions_every_format(client):
     html = client.get("/app").text
-    assert ".docx or .pdf" in html
-    assert 'accept=".docx,.pdf"' in html
+    for ext in (".docx", ".pdf", ".xlsx"):
+        assert ext in html
+    assert 'accept=".docx,.pdf,.xlsx"' in html
 
 
 # ---------------------------------------------------- activity log paging
@@ -922,3 +923,91 @@ def test_swap_is_not_launched_detached():
     source = inspect.getsource(updater.apply_and_restart)
     assert "DETACHED_PROCESS" not in source.replace("DETACHED_PROCESS is deliberately", "")
     assert "CREATE_NO_WINDOW" in source
+
+
+# ------------------------------------------------------------ xlsx support
+
+
+@pytest.fixture
+def protected_xlsx_bytes(tmp_path):
+    from tests.make_xlsx_fixture import build_protected
+    return build_protected(tmp_path / "xl" / "p.xlsx").read_bytes()
+
+
+def test_upload_unlocks_an_xlsx(client, protected_xlsx_bytes):
+    body = client.post(
+        "/upload?format=json", files={"file": ("book.xlsx", protected_xlsx_bytes)}
+    ).json()
+    assert body["status"] == "success", body.get("error")
+    assert body["format"] == "xlsx"
+    assert body["output_name"] == "book_unlocked.xlsx"
+    assert body["protections_found"] >= 1
+
+
+def test_uploaded_xlsx_is_actually_unlocked(client, protected_xlsx_bytes, tmp_path):
+    import re
+
+    client.post("/upload", files={"file": ("b.xlsx", protected_xlsx_bytes)})
+    out = next((tmp_path / "DocCipherBreaker" / "unlocked").glob("*_unlocked.xlsx"))
+    with zipfile.ZipFile(out) as zf:
+        for name in zf.namelist():
+            if name.lower().startswith("xl/worksheets/"):
+                assert not re.search(rb"<sheetProtection", zf.read(name))
+            if name.lower() == "xl/workbook.xml":
+                assert not re.search(rb"<workbookProtection", zf.read(name))
+
+
+def test_history_records_xlsx_format(client, protected_xlsx_bytes):
+    client.post("/upload", files={"file": ("s.xlsx", protected_xlsx_bytes)})
+    rows = client.get("/api/history").json()
+    assert rows[0]["file_format"] == "xlsx"
+
+
+def test_history_table_shows_an_xlsx_badge(client, protected_xlsx_bytes):
+    client.post("/upload", files={"file": ("s.xlsx", protected_xlsx_bytes)})
+    html = client.get("/history").text
+    assert 'class="fmt fmt-xlsx">XLSX<' in html
+
+
+def test_history_filters_by_xlsx(client, protected_xlsx_bytes, locked_bytes):
+    client.post("/upload", files={"file": ("a.xlsx", protected_xlsx_bytes)})
+    client.post("/upload", files={"file": ("b.docx", locked_bytes)})
+
+    only_xlsx = client.get("/history", params={"file_format": "xlsx"}).text
+    assert "a.xlsx" in only_xlsx and "b.docx" not in only_xlsx
+
+
+def test_stats_count_all_three_formats(
+    client, protected_xlsx_bytes, restricted_pdf_bytes, locked_bytes
+):
+    client.post("/upload", files={"file": ("a.xlsx", protected_xlsx_bytes)})
+    client.post("/upload", files={"file": ("b.pdf", restricted_pdf_bytes)})
+    client.post("/upload", files={"file": ("c.docx", locked_bytes)})
+    stats = client.get("/api/stats").json()
+    assert stats["xlsx_count"] == 1
+    assert stats["pdf_count"] == 1
+    assert stats["docx_count"] == 1
+    assert stats["total"] == 3
+
+
+def test_api_inspect_handles_xlsx(client, tmp_path):
+    from tests.make_xlsx_fixture import build_protected
+
+    src = build_protected(tmp_path / "ins" / "p.xlsx")
+    info = client.get("/api/inspect", params={"path": str(src)}).json()
+    assert info["format"] == "xlsx"
+    assert info["protected"] is True
+
+
+def test_api_batch_mixes_all_three_formats(client, tmp_path):
+    from tests.make_pdf_fixture import build_restricted
+    from tests.make_xlsx_fixture import build_protected
+
+    paths = [
+        str(build(tmp_path / "mix3" / "a.docx", protected=True)),
+        str(build_restricted(tmp_path / "mix3" / "b.pdf")),
+        str(build_protected(tmp_path / "mix3" / "c.xlsx")),
+    ]
+    body = client.post("/api/batch", json={"paths": paths}).json()
+    assert body["succeeded"] == 3
+    assert {r["format"] for r in body["results"]} == {"docx", "pdf", "xlsx"}

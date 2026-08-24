@@ -196,7 +196,7 @@ def test_dispatch_rejects_unsupported_type(tmp_path):
     result = dispatch.unlock(str(p), str(tmp_path / "out"))
     assert result.status == "failed"
     assert "Unsupported file type" in result.error
-    assert ".docx and .pdf" in result.error
+    assert ".docx, .pdf and .xlsx" in result.error
 
 
 def test_dispatch_inspect_both_formats(restricted, tmp_path):

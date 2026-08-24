@@ -39,6 +39,7 @@
     docx: {
       label: 'DOCX',
       title: 'Document',
+      noun: 'document',
       steps: [
         'Analyzing file structure',
         'Creating working copy (original untouched)',
@@ -60,9 +61,33 @@
         'Finalizing...'
       ]
     },
+    xlsx: {
+      label: 'XLSX',
+      title: 'Workbook',
+      noun: 'workbook',
+      steps: [
+        'Analyzing Excel file structure',
+        'Extracting workbook contents',
+        'Removing worksheet protections',
+        'Removing workbook protections',
+        'Verifying integrity',
+        'Rebuilding spreadsheet',
+        'Writing unlocked file'
+      ],
+      status: [
+        'Analyzing workbook...',
+        'Extracting contents...',
+        'Unlocking worksheets...',
+        'Unlocking workbook...',
+        'Verifying integrity...',
+        'Rebuilding spreadsheet...',
+        'Finalizing...'
+      ]
+    },
     pdf: {
       label: 'PDF',
       title: 'PDF',
+      noun: 'document',
       steps: [
         'Analyzing PDF security',
         'Detecting restriction type',
@@ -194,7 +219,7 @@
     const spec = FORMATS[fmt] || FORMATS.docx;
     STEPS = spec.steps;
     STATUS_LINES = spec.status;
-    if (cmFormat) cmFormat.textContent = spec.label + ' document';
+    if (cmFormat) cmFormat.textContent = spec.label + ' ' + spec.noun;
     if (cmTitle) cmTitle.textContent = 'Processing ' + spec.title + '...';
     cmTarget.innerHTML = 'File: <b>' + escapeHtml(fileName) + '</b>';
     cmFill.style.width = '0%';
@@ -358,7 +383,7 @@
       showSuccess({
         status: 'failed',
         input_name: '--',
-        error: 'No supported files in selection. Drop a .docx or .pdf file.'
+        error: 'No supported files in selection. Drop a .docx, .pdf or .xlsx file.'
       });
       return;
     }

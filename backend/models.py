@@ -81,3 +81,4 @@ class StatsResponse(BaseModel):
     bytes_saved: int = 0
     docx_count: int = 0
     pdf_count: int = 0
+    xlsx_count: int = 0

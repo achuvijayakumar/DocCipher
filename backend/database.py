@@ -188,7 +188,8 @@ def stats() -> dict:
                          THEN file_size_before - file_size_after ELSE 0 END
                 ), 0)                                                 AS bytes_saved,
                 COALESCE(SUM(file_format = 'docx'), 0)                AS docx_count,
-                COALESCE(SUM(file_format = 'pdf'), 0)                 AS pdf_count
+                COALESCE(SUM(file_format = 'pdf'), 0)                 AS pdf_count,
+                COALESCE(SUM(file_format = 'xlsx'), 0)                AS xlsx_count
             FROM history
             """
         ).fetchone()
