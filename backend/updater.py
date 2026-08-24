@@ -298,7 +298,7 @@ def download(manifest_path: Path, dest_dir: Path) -> dict:
 # The wait also has to test the lock correctly. Opening the .exe for append
 # succeeds even while it is running; only an exclusive open proves Windows has
 # released it.
-SWAP_SCRIPT = r"""param([string]$Target, [string]$Staged)
+SWAP_SCRIPT = r"""param([string]$Target, [string]$Staged, [switch]$Elevated)
 
 $ErrorActionPreference = 'Stop'
 
@@ -363,6 +363,44 @@ if (-not (Test-Unlocked $Target)) {
         "DocCipher Breaker") | Out-Null
     Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
     exit 1
+}
+
+# Installing into Program Files needs elevation. Without it Move-Item fails
+# with access denied, which previously surfaced as "still running" and sent
+# the user hunting for a process that was not there.
+function Test-Writable($path) {
+    $dir = Split-Path -Parent $path
+    $probe = Join-Path $dir ".doccipher_write_test"
+    try {
+        [IO.File]::WriteAllText($probe, "x")
+        Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+        return $true
+    } catch { return $false }
+}
+
+if (-not (Test-Writable $Target)) {
+    if (-not $Elevated) {
+        # Re-launch this same script elevated. The UAC prompt is expected here:
+        # replacing a file in Program Files genuinely requires it.
+        try {
+            Start-Process -FilePath "powershell" -Verb RunAs -WindowStyle Hidden -ArgumentList @(
+                "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                "-File", "`"$PSCommandPath`"",
+                "-Target", "`"$Target`"", "-Staged", "`"$Staged`"", "-Elevated"
+            )
+            exit 0
+        } catch {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+            [System.Windows.Forms.MessageBox]::Show(
+                "This update needs administrator permission because DocCipher " +
+                "Breaker is installed in Program Files." + [Environment]::NewLine +
+                [Environment]::NewLine +
+                "Nothing was changed. Try again and choose Yes when Windows asks.",
+                "DocCipher Breaker") | Out-Null
+            Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+            exit 1
+        }
+    }
 }
 
 $backup = "$Target.old"

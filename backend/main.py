@@ -37,7 +37,7 @@ from .models import (
 )
 
 APP_NAME = "DocCipher Breaker"
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 AUTHOR = "Achu Vijayakumar"
 YEAR = "2026"
 EDU_NOTICE = "FOR EDUCATIONAL PURPOSES ONLY"

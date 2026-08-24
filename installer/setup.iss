@@ -3,7 +3,7 @@
 ;   iscc installer\setup.iss
 
 #define AppName        "DocCipher Breaker"
-#define AppVersion     "1.0.4"
+#define AppVersion     "1.0.5"
 #define AppPublisher   "Achu Vijayakumar"
 #define AppExeName     "DocCipherBreaker.exe"
 #define AppCopyright   "Copyright (C) 2026 Achu Vijayakumar"

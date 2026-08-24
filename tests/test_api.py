@@ -1039,3 +1039,27 @@ def test_app_exit_takes_down_the_parent_process(client):
     assert "taskkill" in source
     assert "/T" in source          # whole tree
     assert "getppid" in source
+
+
+def test_swap_script_elevates_for_program_files():
+    """Program Files is write-protected; an unelevated Move-Item fails.
+
+    That failure previously surfaced as "still running", sending the user
+    hunting for a process that was not there.
+    """
+    from backend.updater import SWAP_SCRIPT
+
+    assert "Test-Writable" in SWAP_SCRIPT
+    assert "-Verb RunAs" in SWAP_SCRIPT
+    # The elevated relaunch must not loop forever.
+    assert "[switch]$Elevated" in SWAP_SCRIPT
+    assert "administrator permission" in SWAP_SCRIPT
+
+
+def test_update_modal_locks_during_install(client):
+    """The modal must stay open and undismissable while installing."""
+    js = (Path(__file__).resolve().parents[1] /
+          "backend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "let installing = false;" in js
+    assert "if (installing) return;" in js        # backdrop click
+    assert "umLater.disabled = true;" in js       # no dismissing mid-install

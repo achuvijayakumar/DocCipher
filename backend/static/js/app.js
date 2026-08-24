@@ -482,6 +482,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (!updateModal.classList.contains('hidden') && installing) return;
     if (!folderModal.classList.contains('hidden')) closeFolderModal();
     else if (!aboutModal.classList.contains('hidden')) closeAbout();
     else if (!successModal.classList.contains('hidden')) closeSuccess();
@@ -604,17 +605,20 @@
   });
 
   umBackdrop.addEventListener('click', () => {
-    // Only dismissable while nothing is being installed.
-    if (!umProgress.classList.contains('hidden')) return;
+    if (installing) return;      // an install in flight cannot be dismissed
     closeUpdate();
   });
 
+  let installing = false;
+
   umInstall.addEventListener('click', async () => {
+    installing = true;
     umInstall.disabled = true;
+    umLater.disabled = true;          // no dismissing a half-finished install
     umError.classList.add('hidden');
     umProgress.classList.remove('hidden');
     umFill.style.width = '35%';
-    umStatus.textContent = 'Downloading…';
+    umStatus.textContent = 'Downloading update…';
 
     let result;
     try {
@@ -629,8 +633,8 @@
       return;
     }
 
-    umFill.style.width = '75%';
-    umStatus.textContent = 'Checksum verified. Installing…';
+    umFill.style.width = '70%';
+    umStatus.textContent = 'Verified. Installing…';
 
     try {
       const res = await fetch('/api/update/apply', { method: 'POST' });
@@ -645,15 +649,19 @@
     }
 
     umFill.style.width = '100%';
-    umStatus.textContent = 'Restarting…';
+    umStatus.textContent =
+      'Installing… DocCipher Breaker will close and reopen on the new version. ' +
+      'If Windows asks for permission, choose Yes.';
     umActions.classList.add('hidden');
   });
 
   function showUmError(message) {
+    installing = false;
     umError.textContent = message;
     umError.classList.remove('hidden');
     umProgress.classList.add('hidden');
     umInstall.disabled = false;
+    umLater.disabled = false;
     umInstall.textContent = 'TRY AGAIN';
   }
 
