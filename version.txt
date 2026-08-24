@@ -1,8 +1,8 @@
 # DocCipher Breaker version manifest.
 # Machine-readable: the updater parses these key=value pairs.
-version=1.0.5
+version=1.0.6
 released=2026-08-24
-notes=Updates now install correctly when the app lives in Program Files.
+notes=Updates now install correctly for apps installed in Program Files.
 name=DocCipher Breaker
 author=Achu Vijayakumar
 notice=FOR EDUCATIONAL PURPOSES ONLY
@@ -14,4 +14,4 @@ notice=FOR EDUCATIONAL PURPOSES ONLY
 #   the updater refuses to install -- this is what stops a substituted binary.
 update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
 download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
-sha256=79C13FBB3550FED3CAD66DE0CB84027B1E514447CE4873109869BCDC9F5C7FEF
+sha256=5D0506FB41DD4CD64173878B8470194D07DEEA9733E0CA4EEFE5478B4DADC251

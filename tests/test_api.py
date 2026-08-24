@@ -1063,3 +1063,17 @@ def test_update_modal_locks_during_install(client):
     assert "let installing = false;" in js
     assert "if (installing) return;" in js        # backdrop click
     assert "umLater.disabled = true;" in js       # no dismissing mid-install
+
+
+def test_lock_check_does_not_require_write_permission():
+    """Opening for ReadWrite fails in Program Files even when nothing runs.
+
+    That made the script report "still running" and exit before it could
+    elevate -- the actual reason updates never installed for installed copies.
+    """
+    from backend.updater import SWAP_SCRIPT
+
+    assert "'Open', 'Read', 'None'" in SWAP_SCRIPT
+    assert "'Open', 'ReadWrite', 'None'" not in SWAP_SCRIPT
+    # Permission errors are not locks.
+    assert "System.UnauthorizedAccessException" in SWAP_SCRIPT

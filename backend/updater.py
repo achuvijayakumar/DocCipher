@@ -303,9 +303,18 @@ SWAP_SCRIPT = r"""param([string]$Target, [string]$Staged, [switch]$Elevated)
 $ErrorActionPreference = 'Stop'
 
 function Test-Unlocked($path) {
+    # Open for READ with no sharing. A running image still refuses this, but a
+    # merely read-only location does not.
+    #
+    # Opening for ReadWrite was wrong: in Program Files that fails with access
+    # denied even when nothing is running, so the script reported "still
+    # running" and exited before it could ever elevate.
     try {
-        $fs = [IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
+        $fs = [IO.File]::Open($path, 'Open', 'Read', 'None')
         $fs.Close()
+        return $true
+    } catch [System.UnauthorizedAccessException] {
+        # Permission, not a lock. Elevation handles this later.
         return $true
     } catch { return $false }
 }
