@@ -1031,16 +1031,16 @@ def test_swap_script_stops_the_whole_process_tree():
     assert "CloseMainWindow" in SWAP_SCRIPT
 
 
-def test_app_exit_takes_down_the_parent_process(client):
-    """os._exit ends only the child; the frozen parent must go too."""
+def test_app_exit_does_not_kill_the_updater_process(client):
+    """The swap helper is an app descendant, so a tree kill also kills it."""
     import inspect
 
     from backend import main
 
     source = inspect.getsource(main.api_update_apply)
-    assert "taskkill" in source
-    assert "/T" in source          # whole tree
-    assert "getppid" in source
+    assert "os._exit(0)" in source
+    assert "subprocess.Popen" not in source
+    assert "getppid" not in source
 
 
 def test_swap_script_elevates_for_program_files():
@@ -1093,3 +1093,13 @@ def test_swap_script_writes_a_diagnostic_log():
     # Every failure path must record why.
     assert "FAILED: target still locked" in SWAP_SCRIPT
     assert "elevation required" in SWAP_SCRIPT
+
+
+def test_swap_relaunches_as_a_new_pyinstaller_instance():
+    """A onefile restart must not inherit the old app's worker-process state."""
+    from backend.updater import SWAP_SCRIPT
+
+    assert '$env:PYINSTALLER_RESET_ENVIRONMENT = "1"' in SWAP_SCRIPT
+    assert SWAP_SCRIPT.index("PYINSTALLER_RESET_ENVIRONMENT") < SWAP_SCRIPT.index(
+        "Start-Process -FilePath $Target"
+    )

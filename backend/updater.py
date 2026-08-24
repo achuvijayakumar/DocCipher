@@ -461,6 +461,11 @@ try {
 # be treated as a failed update -- the user can start the app themselves.
 try {
     Write-Log "relaunching the app"
+    # The PowerShell helper inherited the frozen app's private _PYI_* process
+    # environment. Without an explicit reset, a new PyInstaller onefile build
+    # can mistake this restart for one of its own worker processes and reject
+    # powershell.exe as the wrong parent executable.
+    $env:PYINSTALLER_RESET_ENVIRONMENT = "1"
     Start-Process -FilePath $Target
 } catch {
     Write-Log "relaunch failed (update still installed)"
@@ -499,8 +504,10 @@ def apply_and_restart(target_exe: Path) -> dict:
     ]
 
     try:
-        # CREATE_NO_WINDOW hides the console; CREATE_NEW_PROCESS_GROUP detaches
-        # it from this process so it survives our exit.
+        # CREATE_NO_WINDOW hides the console. CREATE_NEW_PROCESS_GROUP isolates
+        # console-control events, but deliberately does not claim to re-parent
+        # the helper: Windows still treats it as our descendant, which is why
+        # the caller must never use ``taskkill /T`` to shut the app down.
         #
         # DETACHED_PROCESS is deliberately NOT used: it gives the child no
         # console at all, and powershell.exe silently does nothing without one.
