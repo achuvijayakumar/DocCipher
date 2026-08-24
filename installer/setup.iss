@@ -3,7 +3,7 @@
 ;   iscc installer\setup.iss
 
 #define AppName        "DocCipher Breaker"
-#define AppVersion     "1.0.8"
+#define AppVersion     "1.0.9"
 #define AppPublisher   "Achu Vijayakumar"
 #define AppExeName     "DocCipherBreaker.exe"
 #define AppCopyright   "Copyright (C) 2026 Achu Vijayakumar"
@@ -52,7 +52,7 @@ BeveledLabel={#AppName} {#AppVersion}  |  Created by {#AppPublisher}  |  {#EduNo
 
 [Tasks]
 Name: "desktopicon";  Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
-Name: "contextmenu";  Description: "Add ""Unlock with DocCipher Breaker"" to the .docx, .pdf and .xlsx right-click menus"; GroupDescription: "Integration:"
+Name: "contextmenu";  Description: "Add ""Unlock with DocCipher Breaker"" to the right-click menu for Office and PDF files"; GroupDescription: "Integration:"
 
 [Files]
 Source: "..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -86,13 +86,29 @@ Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.docx\shell\DocCiph
 Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.docx\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
 Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.docx\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
 
-Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pdf\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
-Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pdf\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
-Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pdf\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.docm\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.docm\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.docm\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
 
 Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.xlsx\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
 Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.xlsx\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
 Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.xlsx\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
+
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.xlsm\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.xlsm\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.xlsm\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
+
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pptx\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pptx\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pptx\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
+
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pptm\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pptm\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pptm\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
+
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pdf\shell\DocCipherBreaker";     ValueType: string; ValueName: ""; ValueData: "Unlock with DocCipher Breaker";     Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pdf\shell\DocCipherBreaker";     ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico";     Tasks: contextmenu
+Root: HKLM; Subkey: "SOFTWARE\Classes\SystemFileAssociations\.pdf\shell\DocCipherBreaker\command";     ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1""";     Flags: uninsdeletekey; Tasks: contextmenu
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; \

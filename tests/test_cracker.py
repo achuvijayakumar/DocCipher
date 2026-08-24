@@ -85,7 +85,7 @@ def test_rejects_non_docx_extension(tmp_path):
     p.write_text("hello")
     result = DocCracker(str(p)).unlock()
     assert result.status == "failed"
-    assert "not a .docx" in result.error.lower()
+    assert "not a word document" in result.error.lower()
 
 
 def test_rejects_empty_file(tmp_path):

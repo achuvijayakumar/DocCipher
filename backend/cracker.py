@@ -95,7 +95,9 @@ class DocCracker:
         self._temp_dir: Optional[Path] = None
         self._order: list[str] = []
         self._infos: dict[str, zipfile.ZipInfo] = {}
-        self.output_path = self.output_dir / f"{self.input_path.stem}_unlocked.docx"
+        # Keep the original extension so a .docm stays macro-enabled.
+        suffix = self.input_path.suffix.lower() or ".docx"
+        self.output_path = self.output_dir / f"{self.input_path.stem}_unlocked{suffix}"
 
     # ---- logging -------------------------------------------------------
 
@@ -118,8 +120,11 @@ class DocCracker:
             raise CrackError(f"File not found: {self.input_path}")
         if not self.input_path.is_file():
             raise CrackError(f"Not a file: {self.input_path}")
-        if self.input_path.suffix.lower() != ".docx":
-            raise CrackError(f"Not a .docx file: {self.input_path.suffix or '(no extension)'}")
+        # .docm is a .docx with macros: same parts, same protection element.
+        if self.input_path.suffix.lower() not in (".docx", ".docm"):
+            raise CrackError(
+                f"Not a Word document: {self.input_path.suffix or '(no extension)'}"
+            )
 
         size = self.input_path.stat().st_size
         if size == 0:
@@ -284,7 +289,7 @@ class DocCracker:
                 size_after=self.output_path.stat().st_size,
                 duration=duration,
                 protections_found=self.protections_found,
-                file_format="docx",
+                file_format=self.input_path.suffix.lower().lstrip(".") or "docx",
                 method="ooxml",
             )
         except CrackError as exc:

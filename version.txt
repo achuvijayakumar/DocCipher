@@ -1,8 +1,8 @@
 # DocCipher Breaker version manifest.
 # Machine-readable: the updater parses these key=value pairs.
-version=1.0.8
-released=2026-08-24
-notes=Updates now install and the app reopens on the new version.
+version=1.0.9
+released=2026-08-25
+notes=Adds PowerPoint support and macro-enabled Office files.
 name=DocCipher Breaker
 author=Achu Vijayakumar
 notice=FOR EDUCATIONAL PURPOSES ONLY
@@ -14,4 +14,4 @@ notice=FOR EDUCATIONAL PURPOSES ONLY
 #   the updater refuses to install -- this is what stops a substituted binary.
 update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
 download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
-sha256=639DD099C69F403F25B3779001F2257F495FC8139E59E220CE37AF49FC3F0CE3
+sha256=D1D3C5D80835A0A675099EA5F3BCABC500CE49CF98C665B650EEF958EC0CF3B0

@@ -56,7 +56,7 @@ def test_uploaded_output_is_actually_unlocked(client, locked_bytes, tmp_path):
 def test_upload_rejects_non_docx(client):
     res = client.post("/upload", files={"file": ("payload.exe", b"MZ\x90\x00")})
     assert "Processing Failed" in res.text
-    assert "Only .docx" in res.text
+    assert "Only Word, Excel, PowerPoint and PDF" in res.text
 
 
 def test_upload_rejects_garbage_docx(client):
@@ -299,7 +299,7 @@ def test_upload_json_failure_names_the_failed_step(client):
 def test_upload_json_rejects_non_docx(client):
     body = client.post("/upload?format=json", files={"file": ("x.exe", b"MZ")}).json()
     assert body["status"] == "failed"
-    assert "Only .docx" in body["error"]
+    assert "Only Word, Excel, PowerPoint and PDF" in body["error"]
 
 
 def test_upload_json_download_token_works(client, locked_bytes):
@@ -456,7 +456,7 @@ def test_password_protected_pdf_gets_a_friendly_message(client, password_pdf_byt
 def test_upload_rejects_unsupported_extension(client):
     body = client.post("/upload?format=json", files={"file": ("a.txt", b"hello")}).json()
     assert body["status"] == "failed"
-    assert ".docx, .pdf and .xlsx" in body["error"]
+    assert "Only Word, Excel, PowerPoint and PDF" in body["error"]
 
 
 def test_history_records_the_format(client, restricted_pdf_bytes, locked_bytes):
@@ -518,9 +518,9 @@ def test_api_batch_mixes_formats(client, tmp_path):
 
 def test_drop_zone_mentions_every_format(client):
     html = client.get("/app").text
-    for ext in (".docx", ".pdf", ".xlsx"):
-        assert ext in html
-    assert 'accept=".docx,.pdf,.xlsx"' in html
+    assert 'accept=".docx,.docm,.xlsx,.xlsm,.pptx,.pptm,.pdf"' in html
+    for word in ("Word", "Excel", "PowerPoint", "PDF"):
+        assert word in html
 
 
 # ---------------------------------------------------- activity log paging

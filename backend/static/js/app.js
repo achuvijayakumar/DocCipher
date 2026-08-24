@@ -84,6 +84,29 @@
         'Finalizing...'
       ]
     },
+    pptx: {
+      label: 'PPTX',
+      title: 'Presentation',
+      noun: 'presentation',
+      steps: [
+        'Analyzing presentation structure',
+        'Extracting presentation contents',
+        'Removing modify protection',
+        'Unlocking slides',
+        'Verifying integrity',
+        'Rebuilding presentation',
+        'Writing unlocked file'
+      ],
+      status: [
+        'Analyzing presentation...',
+        'Extracting contents...',
+        'Removing protection...',
+        'Unlocking slides...',
+        'Verifying integrity...',
+        'Rebuilding presentation...',
+        'Finalizing...'
+      ]
+    },
     pdf: {
       label: 'PDF',
       title: 'PDF',
@@ -106,6 +129,13 @@
       ]
     }
   };
+
+  // Macro-enabled files are the same format internally; they show the same
+  // step list, but keep their own label so the badge stays accurate.
+  const MACRO_TWIN = { docm: 'docx', xlsm: 'xlsx', pptm: 'pptx' };
+  Object.entries(MACRO_TWIN).forEach(([macro, twin]) => {
+    FORMATS[macro] = Object.assign({}, FORMATS[twin], { label: macro.toUpperCase() });
+  });
 
   function formatOf(name) {
     const ext = (name.split('.').pop() || '').toLowerCase();
@@ -383,7 +413,7 @@
       showSuccess({
         status: 'failed',
         input_name: '--',
-        error: 'No supported files in selection. Drop a .docx, .pdf or .xlsx file.'
+        error: 'No supported files in selection. Drop a Word, Excel, PowerPoint or PDF file.'
       });
       return;
     }

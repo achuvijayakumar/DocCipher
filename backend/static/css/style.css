@@ -961,6 +961,12 @@ table.history td:first-child { color: var(--text); }
 .fmt-docx { color: #00ff41; border-color: rgba(0, 255, 65, .45); background: transparent; }
 .fmt-pdf  { color: #ff4757; border-color: rgba(255, 71, 87, .45); background: rgba(255, 71, 87, .10); }
 .fmt-xlsx { color: #4a9eff; border-color: rgba(74, 158, 255, .45); background: rgba(74, 158, 255, .10); }
+.fmt-pptx { color: #ff9f43; border-color: rgba(255, 159, 67, .45); background: rgba(255, 159, 67, .10); }
+
+/* Macro-enabled variants share their twin's colour -- same format, same lock. */
+.fmt-docm { color: #00ff41; border-color: rgba(0, 255, 65, .45); background: transparent; }
+.fmt-xlsm { color: #4a9eff; border-color: rgba(74, 158, 255, .45); background: rgba(74, 158, 255, .10); }
+.fmt-pptm { color: #ff9f43; border-color: rgba(255, 159, 67, .45); background: rgba(255, 159, 67, .10); }
 
 /* Neon green is unreadable on white; darkened to the light-theme green. */
 :root[data-theme="light"] .fmt-docx {
@@ -969,8 +975,16 @@ table.history td:first-child { color: var(--text); }
 :root[data-theme="light"] .fmt-pdf {
   color: #d32f3f; border-color: rgba(211, 47, 63, .40); background: rgba(211, 47, 63, .08);
 }
-:root[data-theme="light"] .fmt-xlsx {
+:root[data-theme="light"] .fmt-xlsx,
+:root[data-theme="light"] .fmt-xlsm {
   color: #1565c0; border-color: rgba(21, 101, 192, .40); background: rgba(21, 101, 192, .08);
+}
+:root[data-theme="light"] .fmt-pptx,
+:root[data-theme="light"] .fmt-pptm {
+  color: #c2560a; border-color: rgba(194, 86, 10, .40); background: rgba(194, 86, 10, .08);
+}
+:root[data-theme="light"] .fmt-docm {
+  color: #0f8a34; border-color: rgba(15, 138, 52, .40); background: transparent;
 }
 
 .cm-format {
