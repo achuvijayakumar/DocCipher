@@ -54,6 +54,7 @@ class UpdateState:
     progress: int = 0
     ready: bool = False
     staged_path: Optional[str] = None
+    staged_is_installer: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def as_dict(self) -> dict:
@@ -245,11 +246,29 @@ def download(manifest_path: Path, dest_dir: Path) -> dict:
         _require_https(update_url, "update URL")
         remote = _parse_manifest(_fetch_manifest(update_url, CHECK_TIMEOUT))
 
-        download_url = remote.get("download_url", "")
-        expected = remote.get("sha256", "").strip().upper()
+        # An installed copy prefers the installer: it updates shortcuts,
+        # registry entries and the uninstaller, and elevates on its own.
+        # Portable copies keep the in-place executable swap.
+        #
+        # These are separate manifest keys rather than a repointed
+        # download_url, because older clients save whatever download_url
+        # returns as DocCipherBreaker.exe -- handing them an installer under
+        # that name would break them.
+        use_installer = (
+            is_installed_copy()
+            and remote.get("installer_url")
+            and remote.get("installer_sha256")
+        )
+
+        if use_installer:
+            download_url = remote.get("installer_url", "")
+            expected = remote.get("installer_sha256", "").strip().upper()
+        else:
+            download_url = remote.get("download_url", "")
+            expected = remote.get("sha256", "").strip().upper()
 
         if not download_url:
-            raise ValueError("The update manifest has no download_url.")
+            raise ValueError("The update manifest has no download URL.")
         _require_https(download_url, "download URL")
 
         # A build with no published checksum cannot be verified, so it is not
@@ -273,7 +292,7 @@ def download(manifest_path: Path, dest_dir: Path) -> dict:
             )
 
         dest_dir.mkdir(parents=True, exist_ok=True)
-        staged = dest_dir / "DocCipherBreaker.new"
+        staged = dest_dir / ("DocCipherSetup.exe" if use_installer else "DocCipherBreaker.new")
         staged.write_bytes(payload)
 
         state.update(
@@ -281,6 +300,7 @@ def download(manifest_path: Path, dest_dir: Path) -> dict:
             progress=100,
             ready=True,
             staged_path=str(staged),
+            staged_is_installer=bool(use_installer),
             latest=remote.get("version") or state.latest,
         )
     except Exception as exc:
@@ -478,6 +498,119 @@ exit 0
 """
 
 
+# Inno Setup accepts /VERYSILENT for an unattended upgrade. It elevates itself,
+# replaces every installed file, and refreshes shortcuts, registry entries and
+# the uninstaller -- none of which an in-place executable swap does.
+#
+# /NOCLOSEAPPLICATIONS is deliberate: the installer must not try to close this
+# process while it is the one launching it. The helper waits for the app to
+# exit first instead.
+INSTALLER_SCRIPT = r"""param([string]$Installer, [string]$AppExe)
+
+$ErrorActionPreference = 'Stop'
+
+$LogPath = Join-Path $env:LOCALAPPDATA "DocCipherBreaker\update.log"
+function Write-Log($message) {
+    try {
+        $dir = Split-Path -Parent $LogPath
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        Add-Content -LiteralPath $LogPath -Encoding utf8 -Value ((Get-Date).ToString("yyyy-MM-dd HH:mm:ss") + " [installer] " + $message)
+    } catch { }
+}
+
+Write-Log "--- installer update started ---"
+Write-Log "installer: $Installer"
+
+# Wait for the app to close so the installer is not blocked by its own files.
+$name = [IO.Path]::GetFileNameWithoutExtension($AppExe)
+$deadline = (Get-Date).AddSeconds(120)
+while ((Get-Date) -lt $deadline) {
+    $running = Get-Process -Name $name -ErrorAction SilentlyContinue |
+               Where-Object { $_.Path -eq $AppExe }
+    if (-not $running) { break }
+    Start-Sleep -Milliseconds 400
+}
+
+try {
+    # The installer elevates itself; Windows shows one UAC prompt.
+    $p = Start-Process -FilePath $Installer -Wait -PassThru -ArgumentList @(
+        "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOCLOSEAPPLICATIONS"
+    )
+    Write-Log "installer exited with code $($p.ExitCode)"
+
+    if ($p.ExitCode -ne 0) {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        [System.Windows.Forms.MessageBox]::Show(
+            "The update could not be installed (code $($p.ExitCode))." +
+            [Environment]::NewLine + [Environment]::NewLine +
+            "Your existing version is unchanged.",
+            "DocCipher Breaker") | Out-Null
+        exit 1
+    }
+} catch {
+    Write-Log "FAILED: $($_.Exception.Message)"
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    [System.Windows.Forms.MessageBox]::Show(
+        "The update could not be installed:" + [Environment]::NewLine +
+        $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine +
+        "Your existing version is unchanged.",
+        "DocCipher Breaker") | Out-Null
+    exit 1
+}
+
+Remove-Item -LiteralPath $Installer -Force -ErrorAction SilentlyContinue
+
+try {
+    Write-Log "relaunching the app"
+    $env:PYINSTALLER_RESET_ENVIRONMENT = "1"
+    Start-Process -FilePath $AppExe
+} catch {
+    Write-Log "relaunch failed (update still installed): $($_.Exception.Message)"
+}
+
+Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+exit 0
+"""
+
+
+def _run_installer(installer: Path) -> dict:
+    """Run the downloaded Inno Setup installer silently, then relaunch."""
+    exe = running_exe()
+    if not exe:
+        return {"started": False, "error": "Installer updates apply to the installed app."}
+
+    script = Path(tempfile.gettempdir()) / "doccipher_installer.ps1"
+    script.write_text(INSTALLER_SCRIPT, encoding="utf-8")
+
+    command = [
+        "powershell",
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle", "Hidden",
+        "-ExecutionPolicy", "Bypass",
+        "-File", str(script),
+        "-Installer", str(installer),
+        "-AppExe", str(exe),
+    ]
+
+    try:
+        # Same flags as the swap helper: never DETACHED_PROCESS, which leaves
+        # powershell.exe without a console, and never taskkill /T afterwards.
+        subprocess.Popen(
+            command,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        return {"started": False, "error": str(exc)}
+
+    return {"started": True, "method": "installer"}
+
+
 def apply_and_restart(target_exe: Path) -> dict:
     """Hand the swap to a detached script and ask the app to quit.
 
@@ -486,6 +619,12 @@ def apply_and_restart(target_exe: Path) -> dict:
     staged = state.staged_path
     if not staged or not Path(staged).is_file():
         return {"started": False, "error": "No verified update has been downloaded."}
+
+    # An installed copy runs the setup program instead of swapping the .exe:
+    # it elevates itself and refreshes shortcuts, registry entries and the
+    # uninstaller, none of which an in-place swap does.
+    if state.staged_is_installer:
+        return _run_installer(Path(staged))
 
     script = Path(tempfile.gettempdir()) / "doccipher_update.ps1"
     script.write_text(SWAP_SCRIPT, encoding="utf-8")
@@ -526,6 +665,20 @@ def apply_and_restart(target_exe: Path) -> dict:
         return {"started": False, "error": str(exc)}
 
     return {"started": True}
+
+
+def is_installed_copy(exe: Optional[Path] = None) -> bool:
+    """True when this build was put here by the Inno Setup installer.
+
+    Inno writes unins000.exe beside the application. A portable copy has no
+    uninstaller, so it keeps the in-place executable swap; an installed copy
+    is better served by re-running the installer, which also refreshes
+    shortcuts, registry entries and the uninstaller itself.
+    """
+    exe = exe or running_exe()
+    if not exe:
+        return False
+    return any(exe.parent.glob("unins*.exe"))
 
 
 def running_exe() -> Optional[Path]:

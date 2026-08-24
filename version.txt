@@ -1,8 +1,8 @@
 # DocCipher Breaker version manifest.
 # Machine-readable: the updater parses these key=value pairs.
-version=1.0.9
+version=1.1.0
 released=2026-08-25
-notes=Adds PowerPoint support and macro-enabled Office files.
+notes=Installed copies now update through the setup program.
 name=DocCipher Breaker
 author=Achu Vijayakumar
 notice=FOR EDUCATIONAL PURPOSES ONLY
@@ -14,4 +14,11 @@ notice=FOR EDUCATIONAL PURPOSES ONLY
 #   the updater refuses to install -- this is what stops a substituted binary.
 update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
 download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
-sha256=D1D3C5D80835A0A675099EA5F3BCABC500CE49CF98C665B650EEF958EC0CF3B0
+# installer_url / installer_sha256: used by copies installed via the setup
+#   program. Re-running the installer updates shortcuts, registry entries and
+#   the uninstaller, and elevates itself, which an in-place .exe swap cannot.
+#   These are separate keys rather than a repointed download_url, because
+#   older clients save whatever download_url returns as DocCipherBreaker.exe.
+installer_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker_Setup.exe
+installer_sha256=124A9013E4373C9853FBDB6DFE0FB828C39BBD0A571618221BE2FFD38EA0123A
+sha256=A826967D12BBAC8A913CAF01ADE8667C0351A04B79C4FE5A43CD80AC31E580E0

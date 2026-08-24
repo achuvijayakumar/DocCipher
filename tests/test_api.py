@@ -1103,3 +1103,76 @@ def test_swap_relaunches_as_a_new_pyinstaller_instance():
     assert SWAP_SCRIPT.index("PYINSTALLER_RESET_ENVIRONMENT") < SWAP_SCRIPT.index(
         "Start-Process -FilePath $Target"
     )
+
+
+# --------------------------------------------------- installer-based updates
+
+
+def test_installed_copy_is_detected_by_the_uninstaller(tmp_path):
+    """Inno Setup writes unins000.exe beside the app; portable copies have none."""
+    from backend.updater import is_installed_copy
+
+    portable = tmp_path / "portable"
+    portable.mkdir()
+    (portable / "App.exe").write_bytes(b"x")
+    assert is_installed_copy(portable / "App.exe") is False
+
+    installed = tmp_path / "installed"
+    installed.mkdir()
+    (installed / "App.exe").write_bytes(b"x")
+    (installed / "unins000.exe").write_bytes(b"x")
+    assert is_installed_copy(installed / "App.exe") is True
+
+
+def test_installer_script_is_valid_powershell():
+    from backend.updater import INSTALLER_SCRIPT
+
+    assert INSTALLER_SCRIPT.startswith("param(")
+    # Silent, non-restarting, and must not try to close the app that launched it.
+    for flag in ("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOCLOSEAPPLICATIONS"):
+        assert flag in INSTALLER_SCRIPT
+    # Same process-handling rules as the swap helper.
+    assert "PYINSTALLER_RESET_ENVIRONMENT" in INSTALLER_SCRIPT
+    assert "taskkill" not in INSTALLER_SCRIPT.lower()
+
+
+def test_installer_runner_uses_safe_process_flags():
+    import inspect
+
+    from backend import updater
+
+    # Strip comments: they mention DETACHED_PROCESS to explain why it is wrong.
+    source = "\n".join(
+        line for line in inspect.getsource(updater._run_installer).splitlines()
+        if not line.strip().startswith("#")
+    )
+    assert "CREATE_NO_WINDOW" in source
+    # DETACHED_PROCESS leaves powershell.exe with no console and it does nothing.
+    assert "DETACHED_PROCESS" not in source
+
+
+def test_manifest_keeps_installer_keys_separate():
+    """Repointing download_url would break older clients.
+
+    They save whatever download_url returns as DocCipherBreaker.exe, so an
+    installer served under that name would be run as the application.
+    """
+    from backend.updater import read_local_manifest
+
+    manifest = read_local_manifest(Path(__file__).resolve().parents[1] / "version.txt")
+    assert manifest["download_url"].endswith("DocCipherBreaker.exe")
+    assert manifest["installer_url"].endswith("DocCipherBreaker_Setup.exe")
+    assert manifest["download_url"] != manifest["installer_url"]
+
+
+def test_apply_refuses_an_installer_without_an_installed_app(tmp_path, monkeypatch):
+    from backend import updater
+
+    staged = tmp_path / "setup.exe"
+    staged.write_bytes(b"x")
+    updater.state.update(staged_path=str(staged), staged_is_installer=True, ready=True)
+    monkeypatch.setattr(updater, "running_exe", lambda: None)
+
+    result = updater.apply_and_restart(tmp_path / "App.exe")
+    assert result["started"] is False
+    updater.state.update(staged_is_installer=False, staged_path=None)

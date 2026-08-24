@@ -48,6 +48,11 @@ if not exist "dist\DocCipherBreaker.exe" (
 
 :: --------------------------------------------------- distribution bundle
 
+:: Read the version from the manifest so the versioned installer can be found.
+for /f "usebackq tokens=1,* delims==" %%A in ("version.txt") do (
+    if /I "%%A"=="version" set "APPVER=%%B"
+)
+
 echo.
 echo  Assembling distribution bundle...
 
@@ -60,12 +65,26 @@ copy /y "LICENSE"                   "release\" >nul
 copy /y "update.bat"                "release\" >nul
 copy /y "version.txt"               "release\" >nul
 
+:: The updater fetches the installer from /releases/latest/download/ by an
+:: exact filename, so a copy with a stable, unversioned name is published
+:: alongside the versioned one.
+if exist "dist_installer\DocCipherBreaker_Setup_%APPVER%.exe" (
+    copy /y "dist_installer\DocCipherBreaker_Setup_%APPVER%.exe" ^
+            "release\DocCipherBreaker_Setup.exe" >nul
+)
+
 :: Stamp the bundle's own checksum so whoever publishes it can paste the hash
 :: straight into the server-side manifest that update.bat verifies against.
 for /f "usebackq delims=" %%H in (`powershell -NoProfile -Command ^
   "(Get-FileHash -Algorithm SHA256 'release\DocCipherBreaker.exe').Hash"`) do set "EXEHASH=%%H"
 
 echo %EXEHASH%  DocCipherBreaker.exe> "release\SHA256SUMS.txt"
+
+if exist "release\DocCipherBreaker_Setup.exe" (
+    for /f "usebackq delims=" %%H in (`powershell -NoProfile -Command ^
+      "(Get-FileHash -Algorithm SHA256 'release\DocCipherBreaker_Setup.exe').Hash"`) do set "SETUPHASH=%%H"
+)
+if defined SETUPHASH echo %SETUPHASH%  DocCipherBreaker_Setup.exe>> "release\SHA256SUMS.txt"
 
 echo.
 echo  +===========================================+
@@ -78,12 +97,18 @@ echo      - README.md
 echo      - LICENSE
 echo      - update.bat
 echo      - version.txt
+echo      - DocCipherBreaker_Setup.exe
 echo      - SHA256SUMS.txt
 echo.
 echo    Installer: dist_installer\
 echo.
 echo    SHA-256 of the executable:
 echo    %EXEHASH%
+if defined SETUPHASH (
+    echo.
+    echo    SHA-256 of the installer ^(publish as installer_sha256^):
+    echo    %SETUPHASH%
+)
 echo.
 echo    Publish that hash as the sha256= line in the version.txt you host,
 echo    or update.bat will refuse to install the download.
