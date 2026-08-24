@@ -37,7 +37,7 @@ from .models import (
 )
 
 APP_NAME = "DocCipher Breaker"
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 AUTHOR = "Achu Vijayakumar"
 YEAR = "2026"
 EDU_NOTICE = "FOR EDUCATIONAL PURPOSES ONLY"
@@ -287,11 +287,29 @@ def api_update_apply() -> JSONResponse:
 
     # Give the response time to reach the UI before the process exits.
     def quit_soon() -> None:
-        # Long enough for this response to reach the UI, short enough that the
-        # user is not left looking at a frozen window. os._exit skips cleanup
-        # deliberately: it drops the lock on our own .exe immediately, which is
-        # exactly what the swap script is waiting for.
+        """Exit so the swap script can replace the executable.
+
+        A PyInstaller --onefile build runs as two processes: the bootloader
+        that was launched, and the child it spawns to run this code. os._exit
+        would end only the child, leaving the parent holding an exclusive
+        handle on the .exe -- so the swap waits forever and the update silently
+        never installs. Take the whole tree down.
+        """
         time.sleep(2.0)
+
+        if sys.platform == "win32" and getattr(sys, "frozen", False):
+            try:
+                parent = os.getppid()
+                subprocess.Popen(
+                    ["taskkill", "/PID", str(parent), "/T", "/F"],
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                time.sleep(1.0)
+            except Exception:
+                pass      # fall through to the plain exit below
+
         os._exit(0)
 
     threading.Thread(target=quit_soon, daemon=True).start()

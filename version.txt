@@ -1,8 +1,8 @@
 # DocCipher Breaker version manifest.
 # Machine-readable: the updater parses these key=value pairs.
-version=1.0.3
+version=1.0.4
 released=2026-08-24
-notes=Adds Excel (.xlsx) support: removes worksheet and workbook protection.
+notes=Fixes updates failing with 'DocCipher Breaker is still running'.
 name=DocCipher Breaker
 author=Achu Vijayakumar
 notice=FOR EDUCATIONAL PURPOSES ONLY
@@ -14,4 +14,4 @@ notice=FOR EDUCATIONAL PURPOSES ONLY
 #   the updater refuses to install -- this is what stops a substituted binary.
 update_url=https://raw.githubusercontent.com/achuvijayakumar/DocCipher/main/version.txt
 download_url=https://github.com/achuvijayakumar/DocCipher/releases/latest/download/DocCipherBreaker.exe
-sha256=C07FF62E9E9034A3B93B0E7819FBE0AAFEF98E8BAB3631F99408376A4067FBC3
+sha256=0497041A0C2C22E991FCF142E3BD570DD8360ED457ABB4E08CB3B59743798E54

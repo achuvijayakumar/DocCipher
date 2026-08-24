@@ -1011,3 +1011,31 @@ def test_api_batch_mixes_all_three_formats(client, tmp_path):
     body = client.post("/api/batch", json={"paths": paths}).json()
     assert body["succeeded"] == 3
     assert {r["format"] for r in body["results"]} == {"docx", "pdf", "xlsx"}
+
+
+def test_swap_script_stops_the_whole_process_tree():
+    """A PyInstaller --onefile build runs as two processes.
+
+    Exiting the child leaves the parent bootloader holding an exclusive handle
+    on the .exe, so waiting on the file handle alone waits forever and the
+    update silently never installs.
+    """
+    from backend.updater import SWAP_SCRIPT
+
+    assert "Stop-Holders" in SWAP_SCRIPT
+    # Only processes running the exact image are stopped, never by name alone.
+    assert "$_.Path -eq $path" in SWAP_SCRIPT
+    # A window close is attempted before anything is forced.
+    assert "CloseMainWindow" in SWAP_SCRIPT
+
+
+def test_app_exit_takes_down_the_parent_process(client):
+    """os._exit ends only the child; the frozen parent must go too."""
+    import inspect
+
+    from backend import main
+
+    source = inspect.getsource(main.api_update_apply)
+    assert "taskkill" in source
+    assert "/T" in source          # whole tree
+    assert "getppid" in source

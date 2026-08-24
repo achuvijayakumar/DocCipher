@@ -310,6 +310,30 @@ function Test-Unlocked($path) {
     } catch { return $false }
 }
 
+# A PyInstaller --onefile build runs as TWO processes: the bootloader that was
+# launched, and a child it spawns to run the unpacked code. Exiting the child
+# leaves the parent alive and still holding an exclusive handle on the .exe, so
+# waiting on the file handle alone waits forever. Stop anything still running
+# the image we are about to replace.
+function Stop-Holders($path) {
+    $name = [IO.Path]::GetFileNameWithoutExtension($path)
+    Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -eq $path } |
+        ForEach-Object {
+            try { $_.CloseMainWindow() | Out-Null } catch { }
+        }
+    Start-Sleep -Milliseconds 800
+    Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -eq $path } |
+        ForEach-Object {
+            try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch { }
+        }
+}
+
+# Give the app a few seconds to close cleanly on its own before forcing it.
+Start-Sleep -Seconds 3
+Stop-Holders $Target
+
 # Wait for the app to exit and release its own executable.
 #
 # 30 seconds proved too short in practice: the server thread and the WebView2
@@ -317,8 +341,14 @@ function Test-Unlocked($path) {
 # expired the update was silently discarded. Three minutes is far longer than
 # a normal shutdown and costs nothing, since this runs detached.
 $deadline = (Get-Date).AddSeconds(180)
+$lastSweep = Get-Date
 while ((Get-Date) -lt $deadline) {
     if (Test-Unlocked $Target) { break }
+    # A child process can outlive the parent; sweep again periodically.
+    if (((Get-Date) - $lastSweep).TotalSeconds -ge 5) {
+        Stop-Holders $Target
+        $lastSweep = Get-Date
+    }
     Start-Sleep -Milliseconds 400
 }
 
