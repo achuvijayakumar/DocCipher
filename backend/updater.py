@@ -302,6 +302,24 @@ SWAP_SCRIPT = r"""param([string]$Target, [string]$Staged, [switch]$Elevated)
 
 $ErrorActionPreference = 'Stop'
 
+# The swap runs detached with no console, so a failure leaves nothing behind to
+# look at. Record what happened next to the app's own data, where the user can
+# find it and paste it into a bug report.
+$LogPath = Join-Path $env:LOCALAPPDATA "DocCipherBreaker\update.log"
+function Write-Log($message) {
+    try {
+        $dir = Split-Path -Parent $LogPath
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        $tag = if ($Elevated) { "elevated" } else { "normal" }
+        Add-Content -LiteralPath $LogPath -Value "$stamp [$tag] $message" -Encoding utf8
+    } catch { }
+}
+
+Write-Log "--- swap started ---"
+Write-Log "target: $Target"
+Write-Log "staged: $Staged"
+
 function Test-Unlocked($path) {
     # Open for READ with no sharing. A running image still refuses this, but a
     # merely read-only location does not.
@@ -362,6 +380,7 @@ while ((Get-Date) -lt $deadline) {
 }
 
 if (-not (Test-Unlocked $Target)) {
+    Write-Log "FAILED: target still locked after waiting"
     # Keep the download rather than deleting it -- the user can retry, and a
     # silent disappearance is worse than a file left behind.
     Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
@@ -388,6 +407,7 @@ function Test-Writable($path) {
 }
 
 if (-not (Test-Writable $Target)) {
+    Write-Log "target directory not writable; elevation required"
     if (-not $Elevated) {
         # Re-launch this same script elevated. The UAC prompt is expected here:
         # replacing a file in Program Files genuinely requires it.
@@ -397,8 +417,10 @@ if (-not (Test-Writable $Target)) {
                 "-File", "`"$PSCommandPath`"",
                 "-Target", "`"$Target`"", "-Staged", "`"$Staged`"", "-Elevated"
             )
+            Write-Log "relaunched elevated; handing off"
             exit 0
         } catch {
+            Write-Log "FAILED: elevation refused"
             Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
             [System.Windows.Forms.MessageBox]::Show(
                 "This update needs administrator permission because DocCipher " +
@@ -415,9 +437,12 @@ if (-not (Test-Writable $Target)) {
 $backup = "$Target.old"
 try {
     Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+    Write-Log "swapping files"
     Move-Item -LiteralPath $Target -Destination $backup -Force
     Move-Item -LiteralPath $Staged -Destination $Target -Force
+    Write-Log "swap complete"
 } catch {
+    Write-Log "FAILED during swap"
     # Put the previous build back rather than leaving no executable at all.
     if ((Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $Target)) {
         Move-Item -LiteralPath $backup -Destination $Target -Force
@@ -435,8 +460,10 @@ try {
 # The update is already installed at this point. A relaunch failure must not
 # be treated as a failed update -- the user can start the app themselves.
 try {
+    Write-Log "relaunching the app"
     Start-Process -FilePath $Target
 } catch {
+    Write-Log "relaunch failed (update still installed)"
     # Nothing to do; the new build is in place either way.
 }
 

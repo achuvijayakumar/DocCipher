@@ -908,8 +908,10 @@ def test_swap_script_is_valid_powershell():
     from backend.updater import SWAP_SCRIPT
 
     assert SWAP_SCRIPT.startswith("param("), "a leading newline breaks param()"
-    # No ping loop: each iteration spawned a visible console window.
-    assert "ping " not in SWAP_SCRIPT
+    # No ping loop: each iteration spawned a visible console window. Match a
+    # command invocation, not the substring -- "swapping files" contains it.
+    import re
+    assert not re.search(r"(?m)^\s*ping", SWAP_SCRIPT)
     # The wait must outlast a slow shutdown; 30s proved too short in practice.
     assert "AddSeconds(180)" in SWAP_SCRIPT
 
@@ -1077,3 +1079,17 @@ def test_lock_check_does_not_require_write_permission():
     assert "'Open', 'ReadWrite', 'None'" not in SWAP_SCRIPT
     # Permission errors are not locks.
     assert "System.UnauthorizedAccessException" in SWAP_SCRIPT
+
+
+def test_swap_script_writes_a_diagnostic_log():
+    """The swap runs detached with no console, so failures leave no trace.
+
+    Without this, diagnosing a failed update means guessing.
+    """
+    from backend.updater import SWAP_SCRIPT
+
+    assert "Write-Log" in SWAP_SCRIPT
+    assert "update.log" in SWAP_SCRIPT
+    # Every failure path must record why.
+    assert "FAILED: target still locked" in SWAP_SCRIPT
+    assert "elevation required" in SWAP_SCRIPT
